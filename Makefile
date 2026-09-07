@@ -1,37 +1,37 @@
-.PHONY: build fmt fmt-check vet test-docs test-unit test-prepare test clean
+.PHONY: build fmt fmt-check clippy test-docs test-unit test-prepare test clean
 
 BINARY_NAME := grokgrok
 BIN_DIR := bin
+CARGO_BIN := target/debug/$(BINARY_NAME)
 
 build:
-	go build -o $(BIN_DIR)/$(BINARY_NAME) ./cmd/grokgrok/
+	cargo build -p grokgrok
+	mkdir -p $(BIN_DIR)
+	cp $(CARGO_BIN) $(BIN_DIR)/$(BINARY_NAME)
 
 fmt:
-	gofmt -w cmd internal scripts
+	cargo fmt --all
 
 fmt-check:
-	@unformatted=$$(gofmt -l cmd internal scripts); \
-	if [ -n "$$unformatted" ]; then \
-		echo "unformatted files:"; echo "$$unformatted"; exit 1; \
-	fi
+	cargo fmt --all -- --check
 
-vet:
-	go vet ./...
+clippy:
+	cargo clippy --workspace --all-targets -- -D warnings
 
 test-docs:
-	go run ./scripts/docscheck
+	cargo run -p docscheck --bin docscheck -q
 
 test-unit:
-	go test ./...
+	cargo test --workspace
 
 test-prepare:
 	$(MAKE) fmt-check
 	$(MAKE) test-docs
-	$(MAKE) vet
+	$(MAKE) clippy
 
 test:
 	$(MAKE) test-prepare
 	$(MAKE) test-unit
 
 clean:
-	rm -rf $(BIN_DIR)
+	rm -rf $(BIN_DIR) target

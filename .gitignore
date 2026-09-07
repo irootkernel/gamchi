@@ -1,8 +1,17 @@
 /bin/
+/target/
 # Sorage handoff marker (not the grokgrok ledger; ledger is ~/.grokgrok)
 .sorage/
 .grokgrok/
 .omc/
+# Gaori portable policy and local state
+.gaori/*
+!.gaori/tester.yaml
+!.gaori/tester/
+.gaori/tester/*
+!.gaori/tester/rules/
+.gaori/tester/rules/*
+!.gaori/tester/rules/*.yaml
 *.exe
 *.test
 *.out

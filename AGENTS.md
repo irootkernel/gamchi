@@ -19,8 +19,7 @@ Grok adapter uses ACP (`grok agent stdio`), never `grok -p`. CLI `start`
 stays in the foreground; MCP spawn may return because the server process
 owns the child. Do not publish a tool before its Task implements it.
 
-Language: **Rust** for core (ADR-0001). The Go skeleton is disposable
-(TASK-021 before TASK-003).
+Language: **Rust** for core (ADR-0001).
 
 Dolgorae is the **consumer reference** for the Codex app-server 0.149.0 subset
 (`docs/protocol/`). grokgrok is a server on that wire. Do not claim a Dolgorae
@@ -43,7 +42,7 @@ immutable; later changes use a new Task.
 Do not start EPIC-003 until EPIC-002 records a go ADR. Do not fall back to
 `grok -p` on a no-go.
 
-Internal worker types live in `internal/ggwire` and are Codex app-server
+Internal worker types live in `crates/core` (`ggwire`) and are Codex app-server
 `thread` / `turn` / `ThreadItem` from the pinned Dolgorae subset. Do not invent
 an ad hoc `job` JSON. Do not change subset bytes without a new Task.
 

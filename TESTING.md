@@ -6,29 +6,27 @@ The root `Makefile` owns test orchestration. The executable handlers in the
 `Makefile` are authoritative; disagreement between this document and the
 `Makefile` is a blocking contract defect.
 
-Today the tree is a Go prototype. **TASK-021** must rewrite this file and the
-Makefile together: `cargo fmt --check` (must not rewrite in the gate),
-clippy, `cargo test`, and docscheck. Subset digest and vocabulary tests
-move with the core crate. Do not leave TESTING.md describing Go after the
-Makefile runs Cargo.
+The tree is a Cargo workspace (`crates/core`, `crates/docscheck`, `crates/grokgrok`). `make test`
+runs `cargo fmt --check` (must not rewrite), clippy, docscheck, and
+`cargo test`. Subset digest and vocabulary tests live in the core crate.
 
 ## Canonical commands
 
 | Stage | Command |
 | --- | --- |
 | Aggregate | `make test` — runs `test-prepare` then `test-unit`, stopping on the first failure |
-| Prepare | `make test-prepare` — `fmt-check`, `test-docs`, `vet` in order |
+| Prepare | `make test-prepare` — `fmt-check`, `test-docs`, `clippy` in order |
 | Unit | `make test-unit` |
 
-Focused lane: `go test ./internal/<pkg>/...` for one package. There is no
-aggregate integration or e2e target yet; later Tasks add those atomically
-with the behavior they prove.
+Focused lane: `cargo test -p grokgrok-core`, `cargo test -p docscheck`, or `cargo test -p grokgrok` for one
+package. There is no aggregate integration or e2e target yet; later Tasks add
+those atomically with the behavior they prove.
 
 ## Stage mapping
 
 | Stage | Concrete checks |
 | --- | --- |
-| prepare | `gofmt -l` on `cmd`, `internal`, and `scripts` (fails on any unformatted file and never rewrites), `go run ./scripts/docscheck` (roadmap identity, statuses, one active task), `go vet ./...` |
-| unit | `go test ./...` |
+| prepare | `cargo fmt --all -- --check` (fails on unformatted files and never rewrites), `cargo run -p docscheck --bin docscheck -q` (roadmap identity, statuses, one active task), `cargo clippy --workspace --all-targets -- -D warnings` |
+| unit | `cargo test --workspace` |
 
-Live Grok capture belongs to TASK-004 and is not part of this empty gate.
+Live Grok capture belongs to TASK-004 and is not part of this gate.

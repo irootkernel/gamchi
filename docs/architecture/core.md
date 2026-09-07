@@ -74,8 +74,7 @@ Core never imports the Grok, Claude, or zcode SDKs.
 
 **Rust** for core, facades, and the Grok adapter (ADR-0001).
 
-The current Go tree is a disposable prototype. TASK-021 replaces it with a
-Rust core crate **before** TASK-003.
+The core crate is Rust (`crates/core`). TASK-003 adds a stub ACP agent in Rust.
 
 ## v1 scope
 

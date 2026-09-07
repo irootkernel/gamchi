@@ -16,7 +16,8 @@ Dolgorae            --app-server--> facade
 
 See [docs/architecture/core.md](docs/architecture/core.md). Core language is
 Rust ([ADR-0001](docs/architecture-decision-records/0001-rust-core.md)). The
-current Go tree is a prototype; TASK-021 replaces it.
+core crate is `crates/core`; the `grokgrok` binary stub is `crates/grokgrok`;
+roadmap docscheck is `crates/docscheck`.
 
 The v1 host contract is MCP, Gaori-shaped: spawn returns an id immediately;
 `grok_await` stays pending until the turn finishes; that return is the
@@ -30,8 +31,8 @@ Dolgorae.
 
 ## Status
 
-See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-021
-(Rust core crate).
+See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-003
+(stub ACP agent in Rust).
 
 ## Build and test
 

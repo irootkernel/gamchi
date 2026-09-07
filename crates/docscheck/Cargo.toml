@@ -1,0 +1,12 @@
+[package]
+name = "docscheck"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+regex = "1"
+
+[[bin]]
+name = "docscheck"
+path = "src/bin/docscheck.rs"

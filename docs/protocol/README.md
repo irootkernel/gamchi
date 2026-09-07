@@ -65,7 +65,7 @@ REQ-TRANSPORT-004 uses):
 
 ## Internal types
 
-Go types in `internal/ggwire` close what the **subset bytes actually name**:
+Rust types in `crates/core` (`ggwire`) close what the **subset bytes actually name**:
 client methods, approval policies, sandbox values, terminal turn statuses,
 server-request method names, and approval decisions. Public ThreadItem
 **emit** types are grokgrok policy (ACP-projectable) and are tested as such,
