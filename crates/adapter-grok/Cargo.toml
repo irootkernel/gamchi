@@ -1,0 +1,13 @@
+[package]
+name = "grokgrok-adapter-grok"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "fake-acp-agent"
+path = "src/bin/fake-acp-agent.rs"
+
+[dependencies]
+agent-client-protocol = "2.1.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

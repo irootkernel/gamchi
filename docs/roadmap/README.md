@@ -44,7 +44,7 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: `TASK-003` (EPIC-001).
+Next eligible Task: `TASK-004` (EPIC-002).
 
 ## Phase index
 
@@ -56,7 +56,7 @@ Next eligible Task: `TASK-003` (EPIC-001).
 
 ## EPIC-001: Foundation
 
-Status: `In Progress`
+Status: `Completed`
 
 Depends on: —
 
@@ -69,7 +69,7 @@ types the worker will use. Do not implement the transport wire yet.
 | [TASK-002](#epic-001-foundation) | Pin internal thread/turn/item types (0.149.0 subset) | `Completed` | TASK-001 | No ad hoc job JSON. Schema or Go types close the item allowlist |
 | [TASK-020](#epic-001-foundation) | ACP session/update → item mapping spec | `Completed` | TASK-002 | [acp-item-mapping.md](../specs/acp-item-mapping.md) exists. Emit allowlist is ACP-projectable only |
 | [TASK-021](#epic-001-foundation) | Replace Go skeleton with Rust core crate | `Completed` | TASK-020 | Cargo workspace: core crate + grokgrok binary stub. `make test` runs `cargo fmt --check` (no rewrite), clippy, test, and docscheck. Keep subset digest/vocab tests. TESTING.md and Makefile stay in agreement. No Grok/Claude/GLM SDKs in core |
-| [TASK-003](#epic-001-foundation) | Stub ACP agent + test harness | `Planned` | TASK-021 | Fake agent reproduces session/new, prompt, and update **in Rust** |
+| [TASK-003](#epic-001-foundation) | Stub ACP agent + test harness | `Completed` | TASK-021 | Fake agent reproduces session/new, prompt, and update **in Rust** |
 
 ## EPIC-002: ACP feasibility
 

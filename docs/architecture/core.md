@@ -74,7 +74,9 @@ Core never imports the Grok, Claude, or zcode SDKs.
 
 **Rust** for core, facades, and the Grok adapter (ADR-0001).
 
-The core crate is Rust (`crates/core`). TASK-003 adds a stub ACP agent in Rust.
+The core crate is Rust (`crates/core`). The Grok ACP adapter crate is
+`crates/adapter-grok` (package `grokgrok-adapter-grok`). TASK-003's fake ACP
+agent and stdio harness live there; they do not import Grok SDKs.
 
 ## v1 scope
 

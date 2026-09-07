@@ -17,6 +17,7 @@ Dolgorae            --app-server--> facade
 See [docs/architecture/core.md](docs/architecture/core.md). Core language is
 Rust ([ADR-0001](docs/architecture-decision-records/0001-rust-core.md)). The
 core crate is `crates/core`; the `grokgrok` binary stub is `crates/grokgrok`;
+the Grok ACP adapter (fake agent + stdio harness) is `crates/adapter-grok`;
 roadmap docscheck is `crates/docscheck`.
 
 The v1 host contract is MCP, Gaori-shaped: spawn returns an id immediately;
@@ -31,8 +32,8 @@ Dolgorae.
 
 ## Status
 
-See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-003
-(stub ACP agent in Rust).
+See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-004
+(capture live `grok agent stdio`).
 
 ## Build and test
 
