@@ -21,7 +21,7 @@ The adapter crate's fake ACP agent and stdio harness live in `crates/adapter-gro
 
 Focused lane: `cargo test -p samchi-core`, `cargo test -p docscheck`, `cargo test -p samchi-for-grok`, or `cargo test -p samchi-adapter-grok` for one
 package. There is no aggregate integration or e2e target yet; later Tasks add
-those atomically with the behavior they prove. Live Grok is TASK-004.
+those atomically with the behavior they prove. Live Grok is not spawned here.
 
 ## Stage mapping
 
@@ -30,4 +30,5 @@ those atomically with the behavior they prove. Live Grok is TASK-004.
 | prepare | `cargo fmt --all -- --check` (fails on unformatted files and never rewrites), `cargo run -p docscheck --bin docscheck -q` (roadmap identity, statuses, one active task), `cargo clippy --workspace --all-targets -- -D warnings` |
 | unit | `cargo test --workspace` |
 
-Live Grok capture belongs to TASK-004 and is not part of this gate.
+`make test` does not spawn live Grok. TASK-004's checked-in `grok agent stdio`
+capture is parsed offline in `crates/adapter-grok`.

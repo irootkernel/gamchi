@@ -77,7 +77,8 @@ Core never imports the Grok, Claude, or zcode SDKs.
 The core crate is Rust (`crates/core`, package `samchi-core`). The Grok ACP
 adapter crate is `crates/adapter-grok` (package `samchi-adapter-grok`).
 TASK-003's fake ACP agent and stdio harness live there; they do not import
-Grok SDKs.
+Grok SDKs. The TASK-004 live `grok agent stdio` capture is
+`crates/adapter-grok/captures/task-004` and is parsed offline.
 
 ## v1 scope
 

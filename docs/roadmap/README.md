@@ -44,7 +44,7 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: `TASK-004` (EPIC-002).
+Next eligible Task: `TASK-005` (EPIC-002).
 
 ## Phase index
 
@@ -83,7 +83,7 @@ the worker.
 
 | Task | Title | Status | Depends on | Done when |
 | --- | --- | --- | --- | --- |
-| [TASK-004](#epic-002-acp-feasibility) | Capture live `grok agent stdio` | `Planned` | TASK-003 | Repo capture: initialize (pin grok version, `--no-leader` or documented owner), session/new, prompt, update, **real file edit**, turn end. Unauthenticated is Blocked, not a bypass. Fork and full sandbox matrix are out of this capture |
+| [TASK-004](#epic-002-acp-feasibility) | Capture live `grok agent stdio` | `Completed` | TASK-003 | Repo capture: initialize (pin grok version, `--no-leader` or documented owner), session/new, prompt, update, **real file edit**, turn end. Unauthenticated is Blocked, not a bypass. Fork and full sandbox matrix are out of this capture |
 | [TASK-005](#epic-002-acp-feasibility) | go/no-go ADR | `Planned` | TASK-004 | go → EPIC-003 only for MCP v1 capabilities actually observed. no-go → stop. Do not use `grok -p`. Record stdio vs `agent serve` / `leader`. Record whether `session/load` is advertised. `thread/fork` is a later EPIC-005 decision, not this ADR |
 
 ## EPIC-003: Async worker and MCP

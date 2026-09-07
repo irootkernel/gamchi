@@ -1,0 +1,28 @@
+{
+  "task": "TASK-004",
+  "kind": "live grok agent stdio ACP capture",
+  "grok_version": "grok 1.0.13 (5e9a58528b76) [stable]",
+  "agent_version": "1.0.13",
+  "argv": [
+    "grok",
+    "agent",
+    "--no-leader",
+    "--always-approve",
+    "--reasoning-effort",
+    "low",
+    "stdio"
+  ],
+  "owner": "The capture parent process spawned `grok agent stdio` with --no-leader, so that parent owns the child. Leader mode was not used.",
+  "cwd_note": "Disposable capture cwd, recorded as /CAPTURE_CWD in traffic.",
+  "session_id": "01a07ddf-e77b-7530-a7e3-2e0e5c29f1f6",
+  "stop_reason": "end_turn",
+  "written_relpath": "TASK004_CAPTURE.txt",
+  "written_marker": "samchi-for-grok-task-004-live-capture",
+  "load_session_advertised": true,
+  "auth_methods": [
+    "cached_token",
+    "grok.com"
+  ],
+  "protocol_version": 1,
+  "model_id": "grok-4.6"
+}

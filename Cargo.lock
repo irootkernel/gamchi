@@ -1000,6 +1000,7 @@ name = "samchi-adapter-grok"
 version = "0.0.0"
 dependencies = [
  "agent-client-protocol",
+ "serde_json",
  "tokio",
 ]
 
