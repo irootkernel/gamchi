@@ -1,0 +1,9 @@
+/bin/
+# Sorage handoff marker (not the grokgrok ledger; ledger is ~/.grokgrok)
+.sorage/
+.grokgrok/
+.omc/
+*.exe
+*.test
+*.out
+vendor/
