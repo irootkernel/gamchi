@@ -19,7 +19,7 @@ pub const STUB_TOOL_CALL_ID: &str = "stub-edit";
 pub async fn run_fake_agent(transport: impl ConnectTo<Agent>) -> Result<()> {
     Agent
         .builder()
-        .name("grokgrok-fake-acp-agent")
+        .name("samchi-for-grok-fake-acp-agent")
         .on_receive_request(
             async move |initialize: InitializeRequest, responder, _connection| {
                 responder.respond(

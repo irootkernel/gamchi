@@ -6,7 +6,7 @@ The root `Makefile` owns test orchestration. The executable handlers in the
 `Makefile` are authoritative; disagreement between this document and the
 `Makefile` is a blocking contract defect.
 
-The tree is a Cargo workspace (`crates/core`, `crates/docscheck`, `crates/grokgrok`, `crates/adapter-grok`). `make test`
+The tree is a Cargo workspace (`crates/core`, `crates/docscheck`, `crates/samchi-for-grok`, `crates/adapter-grok`). `make test`
 runs `cargo fmt --check` (must not rewrite), clippy, docscheck, and
 `cargo test`. Subset digest and vocabulary tests live in the core crate.
 The adapter crate's fake ACP agent and stdio harness live in `crates/adapter-grok`.
@@ -19,7 +19,7 @@ The adapter crate's fake ACP agent and stdio harness live in `crates/adapter-gro
 | Prepare | `make test-prepare` — `fmt-check`, `test-docs`, `clippy` in order |
 | Unit | `make test-unit` |
 
-Focused lane: `cargo test -p grokgrok-core`, `cargo test -p docscheck`, `cargo test -p grokgrok`, or `cargo test -p grokgrok-adapter-grok` for one
+Focused lane: `cargo test -p samchi-core`, `cargo test -p docscheck`, `cargo test -p samchi-for-grok`, or `cargo test -p samchi-adapter-grok` for one
 package. There is no aggregate integration or e2e target yet; later Tasks add
 those atomically with the behavior they prove. Live Grok is TASK-004.
 

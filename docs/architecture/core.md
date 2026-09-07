@@ -2,12 +2,12 @@
 
 Language: English.
 
-**grokgrok is Grok-only.** The binary talks to Grok. It does not run Claude
-or GLM.
+**samchi-for-grok is Grok-only.** The binary talks to Grok. It does not run
+Claude or GLM.
 
 The **structure** of its core (ledger, generation, thread/turn, facades) is
 what a later Claude backend or zcode/GLM backend can copy or extract. Those
-products are not features of grokgrok.
+products are not features of samchi-for-grok.
 
 ## Place in the Dolgorae map
 
@@ -15,8 +15,8 @@ products are not features of grokgrok.
 | --- | --- | --- |
 | Codex | native `codex app-server` | unchanged |
 | Claude | CCAS today | A future Claude backend may reuse this core’s *shape*, not this binary |
-| Grok | **grokgrok** | this repo |
-| GLM / zcode | later | reuse core structure / crate extract; not a grokgrok adapter slot |
+| Grok | **samchi-for-grok** | this repo |
+| GLM / zcode | later | reuse core structure / crate extract; not a samchi-for-grok adapter slot |
 
 v1 does not implement Claude or GLM. Do not add `adapter-claude` or
 `adapter-glm` packages here.
@@ -40,7 +40,7 @@ v1 does not implement Claude or GLM. Do not add `adapter-claude` or
                            grok agent ACP
 ```
 
-Keep Grok-specific mapping, catalog, and `userAgent=grokgrok/app-server-v1`
+Keep Grok-specific mapping, catalog, and `userAgent=samchi-for-grok/app-server-v1`
 out of core so a later extract does not drag Grok with it.
 
 ### Core owns
@@ -74,13 +74,14 @@ Core never imports the Grok, Claude, or zcode SDKs.
 
 **Rust** for core, facades, and the Grok adapter (ADR-0001).
 
-The core crate is Rust (`crates/core`). The Grok ACP adapter crate is
-`crates/adapter-grok` (package `grokgrok-adapter-grok`). TASK-003's fake ACP
-agent and stdio harness live there; they do not import Grok SDKs.
+The core crate is Rust (`crates/core`, package `samchi-core`). The Grok ACP
+adapter crate is `crates/adapter-grok` (package `samchi-adapter-grok`).
+TASK-003's fake ACP agent and stdio harness live there; they do not import
+Grok SDKs.
 
 ## v1 scope
 
 Ship: extractable core + CLI/MCP/app-server facades + **Grok** ACP adapter.
 
 Do not: Claude/GLM inside this binary, importing CCAS, teaching Dolgorae to
-select grokgrok as a Profile (Dolgorae change).
+select samchi-for-grok as a Profile (Dolgorae change).

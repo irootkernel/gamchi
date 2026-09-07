@@ -2,10 +2,10 @@
 
 Status: Adopted before TASK-007. Language: English.
 
-The Dolgorae subset is a **client requirement** against Codex, not grokgrok's
-emit allowlist. This file is grokgrok policy for what the ACP adapter may
-project onto `ggwire` items. TASK-007 implements this table; it does not
-invent another.
+The Dolgorae subset is a **client requirement** against Codex, not
+samchi-for-grok's emit allowlist. This file is samchi-for-grok policy for what
+the ACP adapter may project onto `source_wire` items. TASK-007 implements this
+table; it does not invent another.
 
 ## Emit allowlist (MCP worker)
 
@@ -37,7 +37,7 @@ Shell-mediated edits are `commandExecution` items plus git `files_changed`.
 ## Not emitted (no ACP source in v1)
 
 `imageView`, `sleep`, `imageGeneration`, `enteredReviewMode`,
-`exitedReviewMode`, `contextCompaction` are not in `ggwire.PublicItemTypes`.
+`exitedReviewMode`, `contextCompaction` are not in `source_wire.PUBLIC_ITEM_TYPES`.
 If EPIC-005 needs to *accept* them on the socket from a Dolgorae-shaped
 client, add them in a new Task with a source.
 
@@ -48,12 +48,12 @@ client, add them in a new Task with a source.
 Do not emit a ThreadItem. Do not suppress ACP lifecycle notifications to hide
 reasoning.
 
-## Excluded-fatal (subset schema branches grokgrok will not emit)
+## Excluded-fatal (subset schema branches samchi-for-grok will not emit)
 
 If the adapter would have to project `subAgentActivity` or
 `collabAgentToolCall`, fail the turn (`failed`). Those strings exist in the
-subset as **schema presence** Dolgorae requires of Codex, not as grokgrok
-emit targets.
+subset as **schema presence** Dolgorae requires of Codex, not as
+samchi-for-grok emit targets.
 
 Unknown item types are neither public nor excluded-fatal: the adapter skips
 them.

@@ -5,7 +5,7 @@ not required to implement.
 
 ## What it is
 
-**grokgrok** (working title) is a **Grok-only** local worker. Parents
+**samchi-for-grok** is a **Grok-only** local worker. Parents
 delegate review *or* implementation. A later Claude or zcode backend may
 reuse the core’s shape; those adapters are not this product.
 
@@ -33,7 +33,7 @@ read-only review.
 - `grok -p` print mode
 - Claude or GLM adapters in this binary
 - Importing CCAS or Dolgorae
-- Claiming a Dolgorae Profile can select grokgrok (Dolgorae change)
+- Claiming a Dolgorae Profile can select samchi-for-grok (Dolgorae change)
 - MCP push as the completion signal
 - Detached daemon / `grok agent leader` as v1 owner (TASK-005 records why)
 

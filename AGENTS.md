@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Repository guidance for AI coding agents working on grokgrok.
+Repository guidance for AI coding agents working on samchi-for-grok.
 
 The rules below are the local authority for how agents inspect, implement, and
 verify work in this repository. They favor correctness and fail-closed behavior
@@ -8,10 +8,10 @@ over speed; apply them proportionally for trivial work.
 
 ## Product
 
-`grokgrok` is a **working title** (rename later). It is **Grok-only**. Keep
-the core free of Grok/Claude/GLM SDKs so a later Claude or zcode backend can
-reuse that structure. Do not add Claude or GLM adapters in this repo. Do not
-import CCAS. Claude stays on CCAS until a separate project extracts the core.
+`samchi-for-grok` is **Grok-only**. Keep the core free of Grok/Claude/GLM SDKs
+so a later Claude or zcode backend can reuse that structure. Do not add Claude
+or GLM adapters in this repo. Do not import CCAS. Claude stays on CCAS until a
+separate project extracts the core.
 
 The MCP facade is a write-capable subagent (review *and* implementation).
 Default spawn is `approvalPolicy=never` and `sandbox=workspace-write`. The
@@ -22,8 +22,9 @@ owns the child. Do not publish a tool before its Task implements it.
 Language: **Rust** for core (ADR-0001).
 
 Dolgorae is the **consumer reference** for the Codex app-server 0.149.0 subset
-(`docs/protocol/`). grokgrok is a server on that wire. Do not claim a Dolgorae
-Profile can launch grokgrok until Dolgorae itself accepts that executable.
+(`docs/protocol/`). samchi-for-grok is a server on that wire. Do not claim a
+Dolgorae Profile can launch samchi-for-grok until Dolgorae itself accepts that
+executable.
 
 ## Core behavior
 
@@ -42,9 +43,10 @@ immutable; later changes use a new Task.
 Do not start EPIC-003 until EPIC-002 records a go ADR. Do not fall back to
 `grok -p` on a no-go.
 
-Internal worker types live in `crates/core` (`ggwire`) and are Codex app-server
-`thread` / `turn` / `ThreadItem` from the pinned Dolgorae subset. Do not invent
-an ad hoc `job` JSON. Do not change subset bytes without a new Task.
+Internal worker types live in `crates/core` (`source_wire`) and are Codex
+app-server `thread` / `turn` / `ThreadItem` from the pinned Dolgorae subset.
+Do not invent an ad hoc `job` JSON. Do not change subset bytes without a new
+Task.
 
 Claude/Codex completion is
 [docs/specs/mcp-async-host-contract.md](docs/specs/mcp-async-host-contract.md):

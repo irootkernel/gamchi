@@ -8,7 +8,7 @@ Language: English.
 | --- | --- | --- |
 | Roadmap | [roadmap/](roadmap/) | Sole Phase, Epic, Task, dependency, execution-order, and lifecycle authority |
 | Specifications | [specs/](specs/) | Product baseline, MCP await, Grok launch, ACP mapping |
-| Protocol artifacts | [protocol/](protocol/) | Pinned Dolgorae Codex 0.149.0 consumer subset and grokgrok wire identity |
+| Protocol artifacts | [protocol/](protocol/) | Pinned Dolgorae Codex 0.149.0 consumer subset and samchi-for-grok wire identity |
 | Architecture | [architecture/](architecture/) | Core / facade / adapter split |
 | Architecture decisions | [architecture-decision-records/](architecture-decision-records/) | Accepted implementation decisions after roadmap settlement |
 

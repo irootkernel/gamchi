@@ -35,7 +35,7 @@ must be set explicitly. yolo does not imply a sandbox profile.
 ## Isolation of the child
 
 Launch with `--no-leader` (or equivalent) unless TASK-005 proves leader mode
-still leaves this grokgrok process as the owner. Stdio connect is not proof
+still leaves this samchi-for-grok process as the owner. Stdio connect is not proof
 of an isolated backend.
 
 ## Files changed

@@ -1,8 +1,8 @@
 /bin/
 /target/
-# Sorage handoff marker (not the grokgrok ledger; ledger is ~/.grokgrok)
+# Sorage handoff marker (not the samchi-for-grok ledger; ledger is ~/.samchi-for-grok)
 .sorage/
-.grokgrok/
+.samchi-for-grok/
 .omc/
 # Gaori portable policy and local state
 .gaori/*

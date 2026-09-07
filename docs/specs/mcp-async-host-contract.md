@@ -3,9 +3,8 @@
 Status: Adopted design for EPIC-003. Implementation starts at TASK-008.
 Language: English.
 
-`grokgrok` is a **working title**. Rename later without changing this contract.
-
-This is how Claude Code and Codex supervise a Grok turn through grokgrok.
+This is how Claude Code and Codex supervise a Grok turn through
+samchi-for-grok.
 It is modeled on Gaori (`start_*` + `await_run` + bounded `wait_run`).
 Dolgorae is not in this path.
 
@@ -60,7 +59,7 @@ not-implemented is not done.
 | Tool | When published | Behavior |
 | --- | --- | --- |
 | `grok_spawn` | TASK-009 | MCP only: returns ids immediately. Owner = this MCP server. |
-| `grok_await` | TASK-009 | No grokgrok timeout. Returns on terminal TurnStatus, or (after TASK-013) `await_reason: pending_approval`. |
+| `grok_await` | TASK-009 | No samchi-for-grok timeout. Returns on terminal TurnStatus, or (after TASK-013) `await_reason: pending_approval`. |
 | `grok_wait` | TASK-009 | Default and max `timeout_ms` 50000 (under a typical 60s host tool deadline, same cap as Gaori). Timeout does **not** cancel the turn. |
 | `grok_status` | TASK-009 | One snapshot. |
 | `grok_result` | TASK-009 | Terminal envelope, or `not_ready`. Truncation: see Result bounds. |
@@ -111,7 +110,7 @@ Default `never` never takes this path. TASK-010 does not require respond.
 
 ## Agent lifecycle (required skill text)
 
-The `use-grokgrok` skill (TASK-010) must state:
+The `use-samchi-for-grok` skill (TASK-010) must state:
 
 1. Call `grok_spawn` exactly once. Preserve `thread_id` and `turn_id`.
    Omit approval/sandbox unless the user asked for read-only or gated
@@ -135,14 +134,14 @@ The `use-grokgrok` skill (TASK-010) must state:
 
 ## Host timeout
 
-`grok_await` has no grokgrok timeout. The MCP host tool deadline must exceed
+`grok_await` has no samchi-for-grok timeout. The MCP host tool deadline must exceed
 the longest expected Grok turn plus ledger finalization.
 
 For Codex, documented config (do not silently edit the user's config):
 
 ```toml
-[mcp_servers.grokgrok]
-command = "grokgrok"
+[mcp_servers.samchi-for-grok]
+command = "samchi-for-grok"
 args = ["mcp"]
 tool_timeout_sec = 3600
 ```
@@ -159,8 +158,8 @@ successful host does not prove the other. Record which host was verified.
 One home for worker, MCP, and later app-server:
 
 1. `--home <absolute-path>` if passed
-2. else `$GROKGROK_HOME`
-3. else `~/.grokgrok`
+2. else `$SAMCHI_FOR_GROK_HOME`
+3. else `~/.samchi-for-grok`
 
 Layout under that home: `threads/`, `turns/`, `generations/`. Do not put the
 ledger in the git workspace by default. `.sorage/` in `.gitignore` is the
@@ -173,14 +172,14 @@ implement:
 - A lock so two hosts cannot admit two turns on the same thread
 - Atomic terminal publish (temp file + rename)
 - Waiters wake on that publish; they must not miss a transition
-- Generation liveness is grokgrok pid **and** Grok child waitpid / ACP EOF.
+- Generation liveness is samchi-for-grok pid **and** Grok child waitpid / ACP EOF.
   Parent death and child death both resolve waiters without a host timeout
 - If a terminal record is already published, do not overwrite it with
   `worker_gone`
 
 ## Worker ownership
 
-`grok agent stdio` is a **child of the grokgrok process** that spawned it:
+`grok agent stdio` is a **child of the samchi-for-grok process** that spawned it:
 the long-lived MCP server, or the CLI `start` process that stays in the
 foreground. It is not detached in v1. CLI `start` must not exit while the
 child should live.
@@ -189,7 +188,7 @@ child should live.
 and are not the v1 owner. Launch with `--no-leader` unless that ADR says
 otherwise.
 
-Each turn records a **generation** (`grokgrok` pid + start epoch).
+Each turn records a **generation** (`samchi-for-grok` pid + start epoch).
 `grok_await` / `grok_wait` / `grok_status` that see `inProgress` first check
 generation liveness. A dead generation converges immediately to `failed` with
 failure reason `worker_gone`. Infinite wait is forbidden.

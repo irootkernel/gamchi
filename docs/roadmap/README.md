@@ -1,4 +1,4 @@
-# grokgrok Roadmap
+# samchi-for-grok Roadmap
 
 Authority: Sole Phase, Epic, Task, dependency, execution-order, and lifecycle
 status.
@@ -32,9 +32,9 @@ Do not start EPIC-003 until EPIC-002 records a go ADR. Do not fall back to
 `grok agent leader` and say why v1 still uses `grok agent stdio` (or why it
 does not).
 
-`grokgrok` is a working title. It is **Grok-only**. The core is structured so
-a later Claude or zcode backend can reuse it; those adapters are not this
-repo. Language: Rust (ADR-0001).
+`samchi-for-grok` is **Grok-only**. The core is structured so a later Claude
+or zcode backend can reuse it; those adapters are not this repo. Language:
+Rust (ADR-0001).
 
 MCP v1 is a write-capable subagent (review and implementation). Default spawn
 is `approvalPolicy=never` and `sandbox=workspace-write`. Optional gated
@@ -70,6 +70,7 @@ types the worker will use. Do not implement the transport wire yet.
 | [TASK-020](#epic-001-foundation) | ACP session/update → item mapping spec | `Completed` | TASK-002 | [acp-item-mapping.md](../specs/acp-item-mapping.md) exists. Emit allowlist is ACP-projectable only |
 | [TASK-021](#epic-001-foundation) | Replace Go skeleton with Rust core crate | `Completed` | TASK-020 | Cargo workspace: core crate + grokgrok binary stub. `make test` runs `cargo fmt --check` (no rewrite), clippy, test, and docscheck. Keep subset digest/vocab tests. TESTING.md and Makefile stay in agreement. No Grok/Claude/GLM SDKs in core |
 | [TASK-003](#epic-001-foundation) | Stub ACP agent + test harness | `Completed` | TASK-021 | Fake agent reproduces session/new, prompt, and update **in Rust** |
+| [TASK-022](#epic-001-foundation) | Rename product identity to samchi-for-grok | `Completed` | TASK-003 | Binary, crates, userAgent, home, and docs use `samchi-for-grok`. README title is Samchi for Grok. `ggwire` is `source_wire`. `make test` passes. Completed task Done when strings stay historical |
 
 ## EPIC-002: ACP feasibility
 
@@ -96,11 +97,11 @@ process lifetimes differ** (see [MCP async host contract](../specs/mcp-async-hos
 
 | Task | Title | Status | Depends on | Done when |
 | --- | --- | --- | --- | --- |
-| [TASK-006](#epic-003-async-worker-and-mcp) | Disk ledger (thread/turn/item, generation) | `Planned` | TASK-005 | Home is --home, GROKGROK_HOME, or ~/.grokgrok. One inProgress turn per thread, lock, atomic terminal publish, waiter wakeup. grokgrok pid and Grok child/ACP EOF both resolve waiters. Dead generation → failed worker_gone unless a terminal record already exists. Optional client_request_id dedup |
+| [TASK-006](#epic-003-async-worker-and-mcp) | Disk ledger (thread/turn/item, generation) | `Planned` | TASK-005 | Home is --home, SAMCHI_FOR_GROK_HOME, or ~/.samchi-for-grok. One inProgress turn per thread, lock, atomic terminal publish, waiter wakeup. samchi-for-grok pid and Grok child/ACP EOF both resolve waiters. Dead generation → failed worker_gone unless a terminal record already exists. Optional client_request_id dedup |
 | [TASK-007](#epic-003-async-worker-and-mcp) | ACP adapter: spawn grok agent, update → item | `Planned` | TASK-006, TASK-020 | Follows acp-item-mapping.md and grok-launch.md. No early complete on in_progress tool updates. live turn edits a file. Unenforceable sandbox/approval rejected |
 | [TASK-008](#epic-003-async-worker-and-mcp) | CLI worker start (owns process), wait, status, result, list | `Planned` | TASK-007 | `--json`. start prints ids then stays until terminal. No CLI daemon. wait 50s does not cancel. Usage matches published verbs only |
-| [TASK-009](#epic-003-async-worker-and-mcp) | `grokgrok mcp` stdio; six tools | `Planned` | TASK-008 | tools/list is spawn, await, wait, status, result, list. spawn→await with default never + workspace-write. untrusted spawn rejected. host timeout of await does not cancel the turn |
-| [TASK-010](#epic-003-async-worker-and-mcp) | Host packaging: Codex/Claude config + use-grokgrok skill | `Planned` | TASK-009 | skill matches the async host contract. Codex tool_timeout_sec = 3600. Exercise each available host; record which. spawn→await performs an edit. Observer timeout ≠ grok_cancel |
+| [TASK-009](#epic-003-async-worker-and-mcp) | `samchi-for-grok mcp` stdio; six tools | `Planned` | TASK-008 | tools/list is spawn, await, wait, status, result, list. spawn→await with default never + workspace-write. untrusted spawn rejected. host timeout of await does not cancel the turn |
+| [TASK-010](#epic-003-async-worker-and-mcp) | Host packaging: Codex/Claude config + use-samchi-for-grok skill | `Planned` | TASK-009 | skill matches the async host contract. Codex tool_timeout_sec = 3600. Exercise each available host; record which. spawn→await performs an edit. Observer timeout ≠ grok_cancel |
 
 ## EPIC-004: Supervision
 
@@ -129,7 +130,7 @@ Layer the CCAS standard wire on the same worker. No new runtime.
 | Task | Title | Status | Depends on | Done when |
 | --- | --- | --- | --- | --- |
 | [TASK-015](#epic-005-app-server-wire) | app-server --listen unix://… [--home], UDS websocket, occupied path | `Planned` | TASK-014 | This repo records the HTTP/WS rejection table (copy from CCAS/Dolgorae constants). Occupied path fail-closed |
-| [TASK-016](#epic-005-app-server-wire) | initialize / initialized / account/read / Grok model/list | `Planned` | TASK-015 | userAgent=grokgrok/app-server-v1. capabilities.ccas is -32602 |
+| [TASK-016](#epic-005-app-server-wire) | initialize / initialized / account/read / Grok model/list | `Planned` | TASK-015 | userAgent=samchi-for-grok/app-server-v1. capabilities.ccas is -32602 |
 | [TASK-017](#epic-005-app-server-wire) | nine thread/turn methods call the worker | `Planned` | TASK-016 | socket thread/start+turn/start writes the same ledger as MCP spawn |
 | [TASK-018](#epic-005-app-server-wire) | server notifications + requestApproval on the socket | `Planned` | TASK-017 | item/started, completed, turn/completed. approvals are socket server requests |
 | [TASK-019](#epic-005-app-server-wire) | five consumer scenarios + grok/runtime/read | `Planned` | TASK-018 | Named scenarios and grok/runtime/read shape live in this repo. Dolgorae-shaped client passes. thread/fork only if TASK-005 leftover or a new capture proved it. Not a Dolgorae Profile integration |

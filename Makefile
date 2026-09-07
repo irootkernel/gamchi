@@ -1,11 +1,11 @@
 .PHONY: build fmt fmt-check clippy test-docs test-unit test-prepare test clean
 
-BINARY_NAME := grokgrok
+BINARY_NAME := samchi-for-grok
 BIN_DIR := bin
 CARGO_BIN := target/debug/$(BINARY_NAME)
 
 build:
-	cargo build -p grokgrok
+	cargo build -p samchi-for-grok
 	mkdir -p $(BIN_DIR)
 	cp $(CARGO_BIN) $(BIN_DIR)/$(BINARY_NAME)
 

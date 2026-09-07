@@ -9,7 +9,7 @@ use agent_client_protocol::schema::v1::{
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{AcpAgent, Agent, Channel, Client, ConnectionTo};
-use grokgrok_adapter_grok::{run_fake_agent, STUB_REPLY, STUB_SESSION_ID, STUB_TOOL_CALL_ID};
+use samchi_adapter_grok::{run_fake_agent, STUB_REPLY, STUB_SESSION_ID, STUB_TOOL_CALL_ID};
 
 struct Collected {
     message: String,
@@ -57,7 +57,7 @@ async fn run_client(
 
     Client
         .builder()
-        .name("grokgrok-acp-harness")
+        .name("samchi-for-grok-acp-harness")
         .on_receive_notification(
             async move |notification: SessionNotification, _cx| {
                 assert_eq!(notification.session_id.to_string(), STUB_SESSION_ID);

@@ -1,5 +1,5 @@
 [package]
-name = "grokgrok-adapter-grok"
+name = "samchi-adapter-grok"
 version = "0.0.0"
 edition = "2021"
 publish = false

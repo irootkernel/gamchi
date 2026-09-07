@@ -1,5 +1,5 @@
 //! Validates that docs/roadmap/README.md is the sole lifecycle authority
-//! for grokgrok epics and tasks (TASK-001).
+//! for samchi-for-grok epics and tasks (TASK-001).
 
 use regex::Regex;
 use std::collections::HashMap;
@@ -266,7 +266,7 @@ mod tests {
 
     #[test]
     fn rejects_wrong_task_count() {
-        let vs = check("# grokgrok\n\nCurrent Task: none.\nNext eligible Task: none.\n");
+        let vs = check("# samchi-for-grok\n\nCurrent Task: none.\nNext eligible Task: none.\n");
         assert!(
             has_check(&vs, "task-count"),
             "expected task-count, got {vs:?}"
