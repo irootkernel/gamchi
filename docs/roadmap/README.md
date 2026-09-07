@@ -27,10 +27,12 @@ settled.
 Epic status is derived from its Tasks. Phase status is derived from its Epics.
 Each Epic has at most seven Tasks.
 
-Do not start EPIC-003 until EPIC-002 records a go ADR. Do not fall back to
-`grok -p` on a no-go. The TASK-005 ADR must mention `grok agent serve` and
-`grok agent leader` and say why v1 still uses `grok agent stdio` (or why it
-does not).
+EPIC-002 recorded a go
+([ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md)).
+EPIC-003 is unblocked only for capabilities that ADR lists as observed.
+Do not fall back to `grok -p`. v1 uses parent-owned `grok agent stdio` with
+`--no-leader`; `grok agent serve` and `grok agent leader` are not the v1
+owner.
 
 `samchi-for-grok` is **Grok-only**. The core is structured so a later Claude
 or zcode backend can reuse it; those adapters are not this repo. Language:
@@ -44,13 +46,13 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: `TASK-005` (EPIC-002).
+Next eligible Task: `TASK-006` (EPIC-003).
 
 ## Phase index
 
 | Phase | Outcome | Status | Epics |
 | --- | --- | --- | --- |
-| Phase 1 — Contract and feasibility | Test gate, internal thread/turn/item types, ACP go/no-go | `In Progress` | EPIC-001..EPIC-002 |
+| Phase 1 — Contract and feasibility | Test gate, internal thread/turn/item types, ACP go/no-go | `Completed` | EPIC-001..EPIC-002 |
 | Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `Planned` | EPIC-003..EPIC-004 |
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Planned` | EPIC-005 |
 
@@ -74,17 +76,17 @@ types the worker will use. Do not implement the transport wire yet.
 
 ## EPIC-002: ACP feasibility
 
-Status: `Planned`
+Status: `Completed`
 
 Depends on: EPIC-001
 
-Do not pick among candidates. Decide from evidence whether ACP stdio can be
-the worker.
+Decided from the TASK-004 capture: live `grok agent stdio` is the v1 worker
+([ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md)).
 
 | Task | Title | Status | Depends on | Done when |
 | --- | --- | --- | --- | --- |
 | [TASK-004](#epic-002-acp-feasibility) | Capture live `grok agent stdio` | `Completed` | TASK-003 | Repo capture: initialize (pin grok version, `--no-leader` or documented owner), session/new, prompt, update, **real file edit**, turn end. Unauthenticated is Blocked, not a bypass. Fork and full sandbox matrix are out of this capture |
-| [TASK-005](#epic-002-acp-feasibility) | go/no-go ADR | `Planned` | TASK-004 | go → EPIC-003 only for MCP v1 capabilities actually observed. no-go → stop. Do not use `grok -p`. Record stdio vs `agent serve` / `leader`. Record whether `session/load` is advertised. `thread/fork` is a later EPIC-005 decision, not this ADR |
+| [TASK-005](#epic-002-acp-feasibility) | go/no-go ADR | `Completed` | TASK-004 | go → EPIC-003 only for MCP v1 capabilities actually observed. no-go → stop. Do not use `grok -p`. Record stdio vs `agent serve` / `leader`. Record whether `session/load` is advertised. `thread/fork` is a later EPIC-005 decision, not this ADR |
 
 ## EPIC-003: Async worker and MCP
 
@@ -133,4 +135,4 @@ Layer the CCAS standard wire on the same worker. No new runtime.
 | [TASK-016](#epic-005-app-server-wire) | initialize / initialized / account/read / Grok model/list | `Planned` | TASK-015 | userAgent=samchi-for-grok/app-server-v1. capabilities.ccas is -32602 |
 | [TASK-017](#epic-005-app-server-wire) | nine thread/turn methods call the worker | `Planned` | TASK-016 | socket thread/start+turn/start writes the same ledger as MCP spawn |
 | [TASK-018](#epic-005-app-server-wire) | server notifications + requestApproval on the socket | `Planned` | TASK-017 | item/started, completed, turn/completed. approvals are socket server requests |
-| [TASK-019](#epic-005-app-server-wire) | five consumer scenarios + grok/runtime/read | `Planned` | TASK-018 | Named scenarios and grok/runtime/read shape live in this repo. Dolgorae-shaped client passes. thread/fork only if TASK-005 leftover or a new capture proved it. Not a Dolgorae Profile integration |
+| [TASK-019](#epic-005-app-server-wire) | five consumer scenarios + grok/runtime/read | `Planned` | TASK-018 | Named scenarios and grok/runtime/read shape live in this repo. Dolgorae-shaped client passes. thread/fork only if a new capture proved it (ADR-0002 did not decide it). Not a Dolgorae Profile integration |

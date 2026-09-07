@@ -35,7 +35,9 @@ read-only review.
 - Importing CCAS or Dolgorae
 - Claiming a Dolgorae Profile can select samchi-for-grok (Dolgorae change)
 - MCP push as the completion signal
-- Detached daemon / `grok agent leader` as v1 owner (TASK-005 records why)
+- Detached daemon / `grok agent leader` as v1 owner
+  ([ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md):
+  parent-owned `grok agent stdio` with `--no-leader`)
 
 ## Supported environments (intent)
 

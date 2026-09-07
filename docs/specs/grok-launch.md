@@ -34,9 +34,11 @@ must be set explicitly. yolo does not imply a sandbox profile.
 
 ## Isolation of the child
 
-Launch with `--no-leader` (or equivalent) unless TASK-005 proves leader mode
-still leaves this samchi-for-grok process as the owner. Stdio connect is not proof
-of an isolated backend.
+Launch with `--no-leader`.
+[ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md) keeps v1
+on parent-owned `grok agent stdio`; `grok agent leader` / `grok agent serve`
+were not captured as the owner. Stdio connect is not proof of an isolated
+backend.
 
 ## Files changed
 

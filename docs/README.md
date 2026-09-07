@@ -23,6 +23,8 @@ baseline.
 2. [Product](specs/product.md) owns scope, defaults, and exclusions.
 3. [Core](architecture/core.md) owns Grok-only vs extractable core.
    [ADR-0001](architecture-decision-records/0001-rust-core.md) owns Rust.
+   [ADR-0002](architecture-decision-records/0002-grok-agent-stdio.md) owns the
+   v1 `grok agent stdio` go.
 4. [MCP async host contract](specs/mcp-async-host-contract.md),
    [Grok launch](specs/grok-launch.md), and
    [ACP item mapping](specs/acp-item-mapping.md) own host/adapter contracts.

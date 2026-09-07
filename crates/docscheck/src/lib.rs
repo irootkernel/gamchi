@@ -205,6 +205,55 @@ pub fn check(body: &str) -> Vec<Violation> {
     vs
 }
 
+/// Status of `TASK-NNN` in a roadmap body, if the row exists.
+pub fn task_status(body: &str, task: &str) -> Option<String> {
+    let id = task.strip_prefix("TASK-").unwrap_or(task);
+    parse_tasks(body)
+        .into_iter()
+        .find(|row| row.id == id)
+        .map(|row| row.status)
+}
+
+/// `Current Task` value (`TASK-NNN` or `none`).
+pub fn current_task(body: &str) -> Option<String> {
+    CURRENT_RE
+        .captures(body)
+        .map(|c| c.get(1).unwrap().as_str().trim_matches('`').to_string())
+}
+
+/// `Next eligible Task` value (`TASK-NNN` or `none`).
+pub fn next_eligible_task(body: &str) -> Option<String> {
+    NEXT_RE
+        .captures(body)
+        .map(|c| c.get(1).unwrap().as_str().trim_matches('`').to_string())
+}
+
+/// `Status:` line for `EPIC-NNN`.
+pub fn epic_status(body: &str, epic_id: &str) -> Option<String> {
+    let marker = format!("## {epic_id}:");
+    for section in epic_task_sections(body) {
+        if section.starts_with(&marker) {
+            return EPIC_STATUS_RE
+                .captures(section)
+                .map(|c| c.get(1).unwrap().as_str().to_string());
+        }
+    }
+    None
+}
+
+/// Status cell for `Phase N` in the phase index table.
+pub fn phase_status(body: &str, phase: u32) -> Option<String> {
+    static PHASE_ROW_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?m)^\| Phase ([0-9]+) — [^|]+\| [^|]+\| `([^`]+)` \|").unwrap()
+    });
+    for cap in PHASE_ROW_RE.captures_iter(body) {
+        if cap.get(1).unwrap().as_str().parse::<u32>().ok() == Some(phase) {
+            return Some(cap.get(2).unwrap().as_str().to_string());
+        }
+    }
+    None
+}
+
 fn epic_task_sections(body: &str) -> Vec<&str> {
     let idxs: Vec<usize> = EPIC_SPLIT_RE.find_iter(body).map(|m| m.start()).collect();
     if idxs.is_empty() {
@@ -297,5 +346,41 @@ mod tests {
             has_check(&vs, "one-active-task") || has_check(&vs, "current-task"),
             "expected one-active-task or current-task, got {vs:?}"
         );
+    }
+
+    #[test]
+    fn checked_in_task_005_go_settled() {
+        let body = checked_in();
+        assert_eq!(task_status(&body, "005").as_deref(), Some("Completed"));
+        assert_eq!(task_status(&body, "004").as_deref(), Some("Completed"));
+        assert_eq!(task_status(&body, "006").as_deref(), Some("Planned"));
+        assert_eq!(current_task(&body).as_deref(), Some("none"));
+        assert_eq!(next_eligible_task(&body).as_deref(), Some("TASK-006"));
+        assert_eq!(epic_status(&body, "EPIC-002").as_deref(), Some("Completed"));
+        assert_eq!(phase_status(&body, 1).as_deref(), Some("Completed"));
+    }
+
+    #[test]
+    fn readers_see_synthetic_rows() {
+        let body = "\
+Current Task: `TASK-005`.\n\
+Next eligible Task: `TASK-006`.\n\
+\n\
+## EPIC-002: ACP feasibility\n\
+\n\
+Status: `Completed`\n\
+\n\
+| Task | Title | Status | Depends on | Done when |\n\
+| --- | --- | --- | --- | --- |\n\
+| [TASK-005](#epic-002-acp-feasibility) | go/no-go ADR | `Completed` | TASK-004 | go |\n\
+\n\
+| Phase | Outcome | Status | Epics |\n\
+| --- | --- | --- | --- |\n\
+| Phase 1 — Contract and feasibility | ACP go/no-go | `Completed` | EPIC-001..EPIC-002 |\n";
+        assert_eq!(task_status(body, "TASK-005").as_deref(), Some("Completed"));
+        assert_eq!(current_task(body).as_deref(), Some("TASK-005"));
+        assert_eq!(next_eligible_task(body).as_deref(), Some("TASK-006"));
+        assert_eq!(epic_status(body, "EPIC-002").as_deref(), Some("Completed"));
+        assert_eq!(phase_status(body, 1).as_deref(), Some("Completed"));
     }
 }

@@ -75,5 +75,8 @@ replay is a **history phase**, not a new turn.
 - When the follow-up `session/prompt` starts, only *new* updates attach to
   the new turn.
 
-Capability: `session/load` is optional. If initialize does not advertise it,
-TASK-012 follow-up is out of scope or fail closed (TASK-005 records which).
+Capability: `session/load` is optional. The TASK-004 capture advertised
+`loadSession` on initialize and did not invoke `session/load`
+([ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md)).
+TASK-012 follow-up may use the advertised method; fail closed if a later
+agent does not advertise it.

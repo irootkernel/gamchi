@@ -1,8 +1,8 @@
 //! Grok ACP adapter crate. TASK-003 is a fake agent plus stdio harness.
 //!
 //! Do not import Grok, Claude, or GLM SDKs here. Live `grok agent stdio` was
-//! captured in TASK-004 (`captures/task-004`). Mapping `session/update` onto
-//! `source_wire` items is TASK-007.
+//! captured in TASK-004 (`captures/task-004`). TASK-005 recorded a go
+//! (ADR-0002). Mapping `session/update` onto `source_wire` items is TASK-007.
 
 mod fake;
 pub mod live_capture;

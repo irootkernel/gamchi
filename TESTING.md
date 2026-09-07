@@ -10,6 +10,8 @@ The tree is a Cargo workspace (`crates/core`, `crates/docscheck`, `crates/samchi
 runs `cargo fmt --check` (must not rewrite), clippy, docscheck, and
 `cargo test`. Subset digest and vocabulary tests live in the core crate.
 The adapter crate's fake ACP agent and stdio harness live in `crates/adapter-grok`.
+TASK-005's go ADR is checked against that capture parser; `make test` still
+does not spawn live Grok.
 
 ## Canonical commands
 

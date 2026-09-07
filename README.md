@@ -33,8 +33,10 @@ Dolgorae.
 
 ## Status
 
-See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-005
-(ACP go/no-go ADR). The TASK-004 live `grok agent stdio` capture is
+See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-006
+(disk ledger). ACP go is
+[ADR-0002](docs/architecture-decision-records/0002-grok-agent-stdio.md).
+The TASK-004 live `grok agent stdio` capture is
 [crates/adapter-grok/captures/task-004](crates/adapter-grok/captures/task-004).
 
 ## Build and test

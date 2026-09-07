@@ -184,9 +184,9 @@ the long-lived MCP server, or the CLI `start` process that stays in the
 foreground. It is not detached in v1. CLI `start` must not exit while the
 child should live.
 
-`grok agent leader` / `grok agent serve` are evaluated in the TASK-005 ADR
-and are not the v1 owner. Launch with `--no-leader` unless that ADR says
-otherwise.
+`grok agent leader` / `grok agent serve` are not the v1 owner
+([ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md)).
+Launch with `--no-leader`.
 
 Each turn records a **generation** (`samchi-for-grok` pid + start epoch).
 `grok_await` / `grok_wait` / `grok_status` that see `inProgress` first check
