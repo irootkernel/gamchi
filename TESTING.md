@@ -45,3 +45,8 @@ test binary and dummy `sleep` children only.
 capture is parsed offline in `crates/adapter-grok`. TASK-007 launch fail-closed
 and mapping tests run in `samchi-adapter-grok`; the live file-edit is
 `cargo test -p samchi-adapter-grok --test live_edit -- --ignored`.
+TASK-010 host packaging is checked offline in `samchi-for-grok` (`host_packaging`).
+The live MCP/Claude/Codex spawn→await file-edit is
+`cargo test -p samchi-for-grok --test live_host -- --ignored`.
+That live turn uses an isolated disposable workspace and does not edit user
+host config.

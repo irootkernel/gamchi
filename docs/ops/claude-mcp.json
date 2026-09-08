@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "samchi-for-grok": {
+      "command": "samchi-for-grok",
+      "args": ["mcp"]
+    }
+  }
+}

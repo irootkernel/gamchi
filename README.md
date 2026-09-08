@@ -33,8 +33,8 @@ Dolgorae.
 
 ## Status
 
-See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-010
-(host packaging). ACP go is
+See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-011
+(cancel / interrupt). ACP go is
 [ADR-0002](docs/architecture-decision-records/0002-grok-agent-stdio.md).
 The TASK-004 live `grok agent stdio` capture is
 [crates/adapter-grok/captures/task-004](crates/adapter-grok/captures/task-004).
@@ -50,5 +50,6 @@ make build
 ```
 
 `samchi-for-grok worker start|wait|status|result|list --json` and
-`samchi-for-grok mcp` (six tools) are implemented. `app-server` is not
-implemented yet.
+`samchi-for-grok mcp` (six tools) are implemented. Host packaging lives in
+[skills/use-samchi-for-grok](skills/use-samchi-for-grok/SKILL.md) and
+[docs/ops](docs/ops/). `app-server` is not implemented yet.

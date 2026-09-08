@@ -1,0 +1,7 @@
+# Copy into Codex host config only when the user asks.
+# Do not silently edit user config.
+
+[mcp_servers.samchi-for-grok]
+command = "samchi-for-grok"
+args = ["mcp"]
+tool_timeout_sec = 3600

@@ -12,6 +12,7 @@ Language: English.
 | Architecture | [architecture/](architecture/) | Core / facade / adapter split |
 | Architecture decisions | [architecture-decision-records/](architecture-decision-records/) | Accepted implementation decisions after roadmap settlement |
 | TODO | [todo/](todo/) | Temporary execution dossiers; not lifecycle status |
+| Operations | [ops/](ops/) | Host packaging snippets; copy only with user intent |
 
 The [roadmap](roadmap/README.md) owns delivery identity, order, dependencies,
 and lifecycle status. [Product](specs/product.md) is the in-repo requirements
