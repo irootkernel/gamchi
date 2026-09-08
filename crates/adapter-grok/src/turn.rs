@@ -13,7 +13,7 @@ use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, ByteStreams, Client, ConnectionTo};
 use samchi_core::ledger::{Ledger, LedgerError, NewThread, NewTurn};
 use samchi_core::source_wire::{
-    map_stop_reason, ApprovalPolicy, ThreadSandbox, Turn, TurnStatus, UserInput,
+    map_stop_reason, ApprovalDecision, ApprovalPolicy, ThreadSandbox, Turn, TurnStatus, UserInput,
 };
 use std::fs;
 use std::io;
@@ -102,6 +102,7 @@ struct Shared {
     thread_id: String,
     load_session_id: Option<String>,
     fatal: Option<String>,
+    approval: ApprovalPolicy,
     /// `session/load` replay is history, not new-turn items or approvals.
     history: bool,
 }
@@ -199,6 +200,7 @@ async fn run_turn_async(
         thread_id: thread_id.clone(),
         load_session_id: load_session_id.clone(),
         fatal: None,
+        approval: req.approval,
         history: false,
     }));
 
@@ -276,8 +278,49 @@ async fn run_turn_async(
         .on_receive_request(
             {
                 let shared = shared_p;
-                async move |req: RequestPermissionRequest, responder, _cx| {
-                    responder.respond(permission_response(&req, &shared))
+                async move |req: RequestPermissionRequest, responder, cx| {
+                    let (history, approval, ledger, turn_id) = {
+                        let inner = shared.lock().expect("mapper");
+                        (
+                            inner.history,
+                            inner.approval,
+                            inner.ledger.clone(),
+                            inner.turn_id.clone(),
+                        )
+                    };
+                    if history {
+                        responder.respond(RequestPermissionResponse::new(
+                            RequestPermissionOutcome::Cancelled,
+                        ))?;
+                        return Ok(());
+                    }
+                    if !matches!(
+                        approval,
+                        ApprovalPolicy::Untrusted | ApprovalPolicy::OnRequest
+                    ) {
+                        responder.respond(auto_allow_permission(&req, &shared))?;
+                        return Ok(());
+                    }
+                    let parked = match ledger.park_approval(&turn_id) {
+                        Ok(turn) => turn,
+                        Err(_) => {
+                            responder.respond(RequestPermissionResponse::new(
+                                RequestPermissionOutcome::Cancelled,
+                            ))?;
+                            return Ok(());
+                        }
+                    };
+                    let request_id = parked.pending_request_id.clone();
+                    cx.spawn(async move {
+                        responder.respond(finish_gated_permission(
+                            &req,
+                            &ledger,
+                            &turn_id,
+                            &request_id,
+                        ))?;
+                        Ok(())
+                    })?;
+                    Ok(())
                 }
             },
             agent_client_protocol::on_receive_request!(),
@@ -409,13 +452,32 @@ fn apply_update(shared: &Arc<Mutex<Shared>>, notification: &SessionNotification)
     }
 }
 
-fn permission_response(
+fn finish_gated_permission(
+    req: &RequestPermissionRequest,
+    ledger: &Ledger,
+    turn_id: &str,
+    request_id: &str,
+) -> RequestPermissionResponse {
+    let decision = match ledger.wait_pending_decision(turn_id, request_id) {
+        Ok(Some(decision)) => decision,
+        Ok(None) | Err(_) => {
+            let _ = ledger.clear_pending(turn_id, request_id);
+            return RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled);
+        }
+    };
+    let _ = ledger.clear_pending(turn_id, request_id);
+    match decision_option(req, decision) {
+        Some(option_id) => RequestPermissionResponse::new(RequestPermissionOutcome::Selected(
+            SelectedPermissionOutcome::new(option_id),
+        )),
+        None => RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled),
+    }
+}
+
+fn auto_allow_permission(
     req: &RequestPermissionRequest,
     shared: &Arc<Mutex<Shared>>,
 ) -> RequestPermissionResponse {
-    if shared.lock().expect("mapper").history {
-        return RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled);
-    }
     let allow = req.options.iter().find(|o| {
         matches!(
             o.kind,
@@ -432,6 +494,33 @@ fn permission_response(
             RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled)
         }
     }
+}
+
+fn decision_option(
+    req: &RequestPermissionRequest,
+    decision: ApprovalDecision,
+) -> Option<agent_client_protocol::schema::v1::PermissionOptionId> {
+    let preferred = match decision {
+        ApprovalDecision::Accept => &[
+            PermissionOptionKind::AllowOnce,
+            PermissionOptionKind::AllowAlways,
+        ][..],
+        ApprovalDecision::AcceptForSession => &[
+            PermissionOptionKind::AllowAlways,
+            PermissionOptionKind::AllowOnce,
+        ][..],
+        ApprovalDecision::Decline => &[
+            PermissionOptionKind::RejectOnce,
+            PermissionOptionKind::RejectAlways,
+        ][..],
+        ApprovalDecision::Cancel => return None,
+    };
+    preferred.iter().find_map(|want| {
+        req.options
+            .iter()
+            .find(|o| o.kind == *want)
+            .map(|o| o.option_id.clone())
+    })
 }
 
 fn confined(cwd: &Path, path: &Path) -> io::Result<PathBuf> {

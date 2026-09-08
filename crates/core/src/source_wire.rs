@@ -256,8 +256,23 @@ pub struct Turn {
     pub failure_reason: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub client_request_id: String,
+    /// Non-empty while `session/request_permission` is parked for grok_respond.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub pending_request_id: String,
+    /// Empty while waiting; otherwise an ApprovalDecision string.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub pending_decision: String,
     #[serde(default)]
     pub items: Vec<Item>,
+}
+
+impl Turn {
+    /// In-flight permission that is not a TurnStatus.
+    pub fn pending_approval(&self) -> bool {
+        !self.status.is_terminal()
+            && !self.pending_request_id.is_empty()
+            && self.pending_decision.is_empty()
+    }
 }
 
 /// Owner process for an in-flight turn (`pid` + start epoch).
@@ -327,6 +342,20 @@ pub fn parse_thread_sandbox(v: &str) -> Result<ThreadSandbox, UnsupportedValueEr
         "workspace-write" => Ok(ThreadSandbox::WorkspaceWrite),
         _ => Err(UnsupportedValueError {
             kind: "sandbox",
+            value: v.to_string(),
+        }),
+    }
+}
+
+/// Rejects unknown values rather than ignoring them.
+pub fn parse_approval_decision(v: &str) -> Result<ApprovalDecision, UnsupportedValueError> {
+    match v {
+        "accept" => Ok(ApprovalDecision::Accept),
+        "acceptForSession" => Ok(ApprovalDecision::AcceptForSession),
+        "decline" => Ok(ApprovalDecision::Decline),
+        "cancel" => Ok(ApprovalDecision::Cancel),
+        _ => Err(UnsupportedValueError {
+            kind: "approvalDecision",
             value: v.to_string(),
         }),
     }

@@ -21,7 +21,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const USAGE: &str = "\
 Usage:
   samchi-for-grok version [--json]
-  samchi-for-grok worker <start|wait|status|result|list|cancel|followup> ...
+  samchi-for-grok worker <start|wait|status|result|list|cancel|followup|respond> ...
   samchi-for-grok mcp [--home <absolute-path>]
   samchi-for-grok app-server --listen unix://<absolute-path> [--home <absolute-path>]
 ";
@@ -214,13 +214,13 @@ mod tests {
     }
 
     #[test]
-    fn worker_usage_omits_unpublished_verbs() {
+    fn worker_usage_lists_published_verbs() {
         assert!(USAGE.contains("cancel"));
         assert!(worker::WORKER_USAGE.contains("worker cancel --json"));
         assert!(USAGE.contains("followup"));
         assert!(worker::WORKER_USAGE.contains("worker followup --json"));
-        assert!(!USAGE.contains("respond"));
-        assert!(!worker::WORKER_USAGE.contains("respond"));
+        assert!(USAGE.contains("respond"));
+        assert!(worker::WORKER_USAGE.contains("worker respond --json"));
         assert!(worker::WORKER_USAGE.contains("worker start --json"));
         assert!(worker::WORKER_USAGE.contains("worker wait --json"));
         let mut stdout = Vec::new();
@@ -229,6 +229,6 @@ mod tests {
         assert_eq!(code, 1);
         let err = String::from_utf8_lossy(&stderr);
         assert!(err.contains("INVALID_CONFIG"), "{err}");
-        assert!(err.contains("worker start --json"), "{err}");
+        assert!(err.contains("worker respond --json"), "{err}");
     }
 }

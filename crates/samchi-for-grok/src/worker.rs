@@ -1,10 +1,12 @@
-//! CLI worker facade. TASK-011 publishes cancel with start/wait/status/result/list.
+//! CLI worker facade. TASK-013 publishes respond with start/wait/status/result/list/cancel/followup.
 
-use crate::ops::cancel_turn;
-use samchi_adapter_grok::{run_turn_on_admit, AgentCommand, ExtraSpawnFields, TurnRequest};
+use crate::ops::{acp_command, bounded_turn_json, cancel_turn, turn_json};
+use samchi_adapter_grok::{run_turn_on_admit, ExtraSpawnFields, TurnRequest};
 use samchi_core::home::{resolve_home_from_os, HomeError};
 use samchi_core::ledger::{Ledger, LedgerError};
-use samchi_core::source_wire::{ApprovalPolicy, ThreadSandbox, Turn};
+use samchi_core::source_wire::{
+    parse_approval_decision, parse_approval_policy, ApprovalPolicy, ThreadSandbox,
+};
 use serde_json::{json, Value};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -13,17 +15,17 @@ use std::time::Duration;
 
 pub const WORKER_USAGE: &str = "\
 Usage:
-  samchi-for-grok worker start --json [--home <absolute-path>] [--cwd <absolute-path>] <prompt>
+  samchi-for-grok worker start --json [--home <absolute-path>] [--cwd <absolute-path>] [--approval-policy <never|untrusted|on-request>] <prompt>
   samchi-for-grok worker wait --json --turn-id <id> [--home <absolute-path>] [--timeout-ms <1-50000>]
   samchi-for-grok worker status --json --turn-id <id> [--home <absolute-path>]
   samchi-for-grok worker result --json --turn-id <id> [--home <absolute-path>]
   samchi-for-grok worker list --json [--home <absolute-path>] [--cwd <absolute-path>]
   samchi-for-grok worker cancel --json --turn-id <id> [--home <absolute-path>]
   samchi-for-grok worker followup --json --thread-id <id> [--home <absolute-path>] [--cwd <absolute-path>] <prompt>
+  samchi-for-grok worker respond --json --request-id <id> --decision <accept|acceptForSession|decline|cancel> [--home <absolute-path>]
 ";
 
 const MAX_WAIT_MS: u64 = 50_000;
-const RESULT_CAP: usize = 64 * 1024;
 
 pub fn run_worker(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
     if args.is_empty() {
@@ -39,7 +41,8 @@ pub fn run_worker(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write)
         "list" => cmd_list(&args[1..], stdout, stderr),
         "cancel" => cmd_cancel(&args[1..], stdout, stderr),
         "followup" => cmd_followup(&args[1..], stdout, stderr),
-        "respond" | "await" => {
+        "respond" => cmd_respond(&args[1..], stdout, stderr),
+        "await" => {
             write_err(stderr, "INVALID_CONFIG");
             write_all(stderr, WORKER_USAGE);
             1
@@ -87,7 +90,7 @@ fn cmd_start(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u
     let req = TurnRequest {
         cwd,
         prompt: parsed.prompt,
-        approval: ApprovalPolicy::Never,
+        approval: parsed.approval,
         sandbox: ThreadSandbox::WorkspaceWrite,
         extra: ExtraSpawnFields::default(),
         model: "grok".to_string(),
@@ -269,6 +272,45 @@ fn cmd_followup(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -
     }
 }
 
+fn cmd_respond(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
+    let parsed = match parse_flags(args, false) {
+        Ok(p) => p,
+        Err(_) => {
+            write_err(stderr, "INVALID_CONFIG");
+            write_all(stderr, WORKER_USAGE);
+            return 1;
+        }
+    };
+    if !parsed.json || parsed.request_id.is_empty() || parsed.decision.is_empty() {
+        write_err(stderr, "INVALID_CONFIG");
+        write_all(stderr, WORKER_USAGE);
+        return 1;
+    }
+    let decision = match parse_approval_decision(&parsed.decision) {
+        Ok(d) => d,
+        Err(_) => {
+            write_err(stderr, "INVALID_CONFIG");
+            write_all(stderr, WORKER_USAGE);
+            return 1;
+        }
+    };
+    let ledger = match open_ledger(parsed.home.as_deref(), stderr) {
+        Ok(l) => l,
+        Err(code) => return code,
+    };
+    match ledger.respond(&parsed.request_id, decision) {
+        Ok(turn) => {
+            write_json(stdout, &bounded_turn_json(&turn, Some(ledger.home())));
+            0
+        }
+        Err(err) => {
+            write_err(stderr, "ACP");
+            write_all(stderr, &format!("{err}\n"));
+            1
+        }
+    }
+}
+
 fn cmd_cancel(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
     let parsed = match parse_flags(args, false) {
         Ok(p) => p,
@@ -337,6 +379,9 @@ struct Flags {
     thread_id: String,
     timeout_ms: Option<u64>,
     prompt: String,
+    approval: ApprovalPolicy,
+    request_id: String,
+    decision: String,
 }
 
 fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
@@ -346,6 +391,9 @@ fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
     let mut turn_id = String::new();
     let mut thread_id = String::new();
     let mut timeout_ms = None;
+    let mut approval = ApprovalPolicy::Never;
+    let mut request_id = String::new();
+    let mut decision = String::new();
     let mut i = 0;
     let mut prompt_parts = Vec::new();
     while i < args.len() {
@@ -373,6 +421,18 @@ fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
                 i += 1;
                 timeout_ms = Some(args.get(i).ok_or(1u8)?.parse().map_err(|_| 1u8)?);
             }
+            "--approval-policy" => {
+                i += 1;
+                approval = parse_approval_policy(args.get(i).ok_or(1u8)?).map_err(|_| 1u8)?;
+            }
+            "--request-id" => {
+                i += 1;
+                request_id = args.get(i).ok_or(1u8)?.to_string();
+            }
+            "--decision" => {
+                i += 1;
+                decision = args.get(i).ok_or(1u8)?.to_string();
+            }
             "--" => {
                 prompt_parts.extend(args[i + 1..].iter().map(|s| (*s).to_string()));
                 break;
@@ -391,19 +451,10 @@ fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
         thread_id,
         timeout_ms,
         prompt: prompt_parts.join(" "),
+        approval,
+        request_id,
+        decision,
     })
-}
-
-fn acp_command() -> AgentCommand {
-    match std::env::var_os("SAMCHI_FOR_GROK_ACP_PROGRAM") {
-        Some(p) => AgentCommand::Override {
-            program: PathBuf::from(p),
-            args: Vec::new(),
-        },
-        None => AgentCommand::Grok {
-            program: PathBuf::from("grok"),
-        },
-    }
 }
 
 fn open_home(explicit: Option<&Path>, stderr: &mut dyn Write) -> Result<PathBuf, u8> {
@@ -430,44 +481,6 @@ fn ledger_err(stderr: &mut dyn Write, err: LedgerError) -> u8 {
         &format!("SAMCHI_FOR_GROK_STARTUP_ERROR LEDGER {err}\n"),
     );
     1
-}
-
-fn turn_json(turn: &Turn) -> Value {
-    json!({
-        "turn_id": turn.id,
-        "thread_id": turn.thread_id,
-        "status": turn.status.as_str(),
-        "stop_reason": turn.stop_reason,
-        "failure_reason": turn.failure_reason,
-        "items": turn.items,
-    })
-}
-
-fn bounded_turn_json(turn: &Turn, home: Option<&Path>) -> Value {
-    let mut v = turn_json(turn);
-    let raw = serde_json::to_vec(&v).unwrap_or_default();
-    if raw.len() <= RESULT_CAP {
-        v.as_object_mut()
-            .expect("obj")
-            .insert("truncated".into(), Value::Bool(false));
-        return v;
-    }
-    if let Some(home) = home {
-        let path = home.join("results").join(format!("{}.json", turn.id));
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        let _ = std::fs::write(&path, &raw);
-        if let Some(obj) = v.as_object_mut() {
-            obj.insert("truncated".into(), Value::Bool(true));
-            obj.insert("path".into(), json!(path.display().to_string()));
-            obj.insert("items".into(), json!([]));
-        }
-    } else if let Some(obj) = v.as_object_mut() {
-        obj.insert("truncated".into(), Value::Bool(true));
-        obj.insert("items".into(), json!([]));
-    }
-    v
 }
 
 fn write_json(w: &mut dyn Write, v: &Value) {

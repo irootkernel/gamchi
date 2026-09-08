@@ -48,7 +48,7 @@ out of core so a later extract does not drag Grok with it.
 - Unix-domain WebSocket transport bounds (Dolgorae `app_server.rs` / CCAS table)
 - JSON-RPC profile (no `jsonrpc` member, initialize/initialized)
 - Durable thread/turn/item ledger and generation
-- Domain operations: start, await, wait, status, result, cancel, list, follow-up
+- Domain operations: start, await, wait, status, result, cancel, list, follow-up, respond
 - Dead-generation → `failed` / `worker_gone`
 - Closed subset vocabularies that are actually in the pinned JSON
   (methods, approval policies, sandbox, terminal turn statuses)
@@ -91,7 +91,10 @@ teardown of the `grok agent stdio` child, TurnStatus `interrupted`. Host
 timeout of await is not cancel. TASK-012 publishes MCP `grok_followup` and
 CLI `worker followup`: `session/load` of the stored ACP session id, then a
 new turn. Load replay is history. Missing `loadSession` fails closed.
-`app-server` stays unpublished until EPIC-005.
+TASK-013 publishes MCP `grok_respond` and CLI `worker respond`: untrusted
+and on-request park ACP `session/request_permission` while the turn stays
+`inProgress`. `pending_approval` is not a TurnStatus. Default `never` still
+auto-approves. `app-server` stays unpublished until EPIC-005.
 
 ## v1 scope
 

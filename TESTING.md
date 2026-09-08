@@ -55,3 +55,7 @@ An in-flight prompt dies and the turn is `interrupted`. Host observer timeout
 of await is not cancel. TASK-012 live follow-up is
 `cargo test -p samchi-for-grok --test live_followup -- --ignored`.
 The second turn uses the same ACP session id.
+TASK-013 live respond is
+`cargo test -p samchi-for-grok --test live_respond -- --ignored`.
+Untrusted does not run a gated shell without `grok_respond`; the parent
+responds then awaits again.

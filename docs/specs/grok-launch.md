@@ -12,7 +12,7 @@ enforce the requested policy.
 | Core request | Intended Grok launch | If Grok cannot enforce |
 | --- | --- | --- |
 | `approvalPolicy=never` | `--always-approve` / yolo | refuse spawn |
-| `approvalPolicy=untrusted` or `on-request` | no yolo; ACP `session/request_permission` | refuse spawn until TASK-013 (`grok_respond`) exists |
+| `approvalPolicy=untrusted` or `on-request` | no yolo; ACP `session/request_permission` | omit `--always-approve`; parent `grok_respond` |
 | `sandbox=workspace-write` | `--sandbox workspace` (writes in cwd; see Grok docs) | refuse spawn |
 | `sandbox=read-only` | `--sandbox` profile that denies workspace writes, if one exists and is verified | refuse spawn; do not accept the name and hope |
 
@@ -44,6 +44,13 @@ v1 argv for default never + workspace-write is:
 
 ```text
 grok --cwd <abs> --sandbox workspace agent --no-leader --always-approve stdio
+```
+
+v1 argv for `untrusted` / `on-request` omits `--always-approve` and sets
+`--permission-mode default` so a user config yolo cannot bypass gating:
+
+```text
+grok --cwd <abs> --sandbox workspace --permission-mode default agent --no-leader stdio
 ```
 
 `--sandbox` is a top-level `grok` flag. `grok agent --sandbox` is rejected by

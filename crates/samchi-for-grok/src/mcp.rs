@@ -1,11 +1,12 @@
-//! MCP stdio facade. TASK-012 publishes grok_followup; spawn still returns immediately.
+//! MCP stdio facade. TASK-013 publishes grok_respond; spawn still returns immediately.
 
 use crate::ops::{
     acp_command, bounded_turn_json, cancel_turn, open_home, open_ledger, turn_json, MAX_WAIT_MS,
 };
 use samchi_adapter_grok::{run_turn_on_admit, ExtraSpawnFields, TurnRequest};
 use samchi_core::source_wire::{
-    parse_approval_policy, parse_thread_sandbox, ApprovalPolicy, ThreadSandbox,
+    parse_approval_decision, parse_approval_policy, parse_thread_sandbox, ApprovalPolicy,
+    ThreadSandbox,
 };
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
@@ -114,6 +115,11 @@ fn tools_list() -> Value {
                 "New turn on the same ACP session via session/load.",
                 followup_schema(),
             ),
+            tool(
+                "grok_respond",
+                "Answer a pending_approval with request_id. Then grok_await again.",
+                respond_schema(),
+            ),
         ]
     })
 }
@@ -164,6 +170,18 @@ fn list_schema() -> Value {
     })
 }
 
+fn respond_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "request_id": {"type": "string"},
+            "decision": {"type": "string"},
+            "home": {"type": "string"}
+        },
+        "required": ["request_id", "decision"]
+    })
+}
+
 fn followup_schema() -> Value {
     json!({
         "type": "object",
@@ -191,6 +209,7 @@ fn call_tool(params: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
         "grok_list" => list_turns(&args, cli_home),
         "grok_cancel" => cancel_tool(&args, cli_home),
         "grok_followup" => followup(&args, cli_home),
+        "grok_respond" => respond_tool(&args, cli_home),
         other => Err(format!("unknown tool {other}")),
     }
 }
@@ -209,12 +228,6 @@ fn spawn(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
         Some(v) => parse_thread_sandbox(v).map_err(|e| e.to_string())?,
         None => ThreadSandbox::WorkspaceWrite,
     };
-    if matches!(
-        approval,
-        ApprovalPolicy::Untrusted | ApprovalPolicy::OnRequest
-    ) {
-        return Err("untrusted/on-request spawn rejected until TASK-013".to_string());
-    }
     if args.get("writableRoots").is_some()
         || args.get("networkAccess").is_some()
         || args.get("excludeSlashTmp").is_some()
@@ -272,7 +285,7 @@ fn await_turn(
     let turn_id = turn_id(args)?;
     let ledger = ledger_from(args, cli_home)?;
     let turn = ledger.wait(&turn_id, timeout).map_err(|e| e.to_string())?;
-    if timeout.is_none() && !turn.status.is_terminal() {
+    if timeout.is_none() && !turn.status.is_terminal() && !turn.pending_approval() {
         return Err("await returned non-terminal".to_string());
     }
     Ok(bounded_turn_json(&turn, Some(ledger.home())))
@@ -304,6 +317,23 @@ fn list_turns(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
     let cwd = args.get("cwd").and_then(Value::as_str);
     let turns = ledger.list_turns(cwd).map_err(|e| e.to_string())?;
     Ok(json!({"turns": turns.iter().map(turn_json).collect::<Vec<_>>()}))
+}
+
+fn respond_tool(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
+    let request_id = args
+        .get("request_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "request_id required".to_string())?;
+    let decision = args
+        .get("decision")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "decision required".to_string())?;
+    let decision = parse_approval_decision(decision).map_err(|e| e.to_string())?;
+    let ledger = ledger_from(args, cli_home)?;
+    let turn = ledger
+        .respond(request_id, decision)
+        .map_err(|e| e.to_string())?;
+    Ok(bounded_turn_json(&turn, Some(ledger.home())))
 }
 
 fn cancel_tool(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {

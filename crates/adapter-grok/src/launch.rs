@@ -77,15 +77,10 @@ pub fn plan_launch(req: &LaunchRequest<'_>) -> Result<LaunchPlan, LaunchError> {
             reason: "adapter cannot implement this subset field".to_string(),
         });
     }
-    match req.approval {
-        ApprovalPolicy::Never => {}
-        ApprovalPolicy::Untrusted | ApprovalPolicy::OnRequest => {
-            return Err(LaunchError::Unenforceable {
-                field: "approvalPolicy".to_string(),
-                reason: "untrusted/on-request wait for TASK-013 grok_respond".to_string(),
-            });
-        }
-    }
+    let always_approve = match req.approval {
+        ApprovalPolicy::Never => true,
+        ApprovalPolicy::Untrusted | ApprovalPolicy::OnRequest => false,
+    };
     match req.sandbox {
         ThreadSandbox::WorkspaceWrite => {}
         ThreadSandbox::ReadOnly => {
@@ -102,18 +97,24 @@ pub fn plan_launch(req: &LaunchRequest<'_>) -> Result<LaunchPlan, LaunchError> {
         });
     }
 
+    let mut args = vec![
+        "--cwd".to_string(),
+        req.cwd.display().to_string(),
+        "--sandbox".to_string(),
+        "workspace".to_string(),
+    ];
+    if !always_approve {
+        args.push("--permission-mode".to_string());
+        args.push("default".to_string());
+    }
+    args.extend(["agent".to_string(), "--no-leader".to_string()]);
+    if always_approve {
+        args.push("--always-approve".to_string());
+    }
+    args.push("stdio".to_string());
     Ok(LaunchPlan {
         program: req.program.to_path_buf(),
-        args: vec![
-            "--cwd".to_string(),
-            req.cwd.display().to_string(),
-            "--sandbox".to_string(),
-            "workspace".to_string(),
-            "agent".to_string(),
-            "--no-leader".to_string(),
-            "--always-approve".to_string(),
-            "stdio".to_string(),
-        ],
+        args,
     })
 }
 
@@ -176,21 +177,35 @@ mod tests {
     }
 
     #[test]
-    fn rejects_untrusted_and_on_request() {
+    fn untrusted_omits_always_approve() {
         let program = Path::new("grok");
         let cwd = Path::new("/tmp/samchi-launch");
         for approval in [ApprovalPolicy::Untrusted, ApprovalPolicy::OnRequest] {
-            let err = plan_launch(&req(
+            let plan = plan_launch(&req(
                 program,
                 cwd,
                 approval,
                 ThreadSandbox::WorkspaceWrite,
                 ExtraSpawnFields::default(),
             ))
-            .expect_err("must refuse");
-            match err {
-                LaunchError::Unenforceable { field, .. } => assert_eq!(field, "approvalPolicy"),
-            }
+            .expect("launch");
+            assert!(
+                !plan.args.iter().any(|a| a == "--always-approve"),
+                "gated policy must not yolo: {:?}",
+                plan.args
+            );
+            let mode_at = plan.args.iter().position(|a| a == "--permission-mode");
+            let agent_at = plan.args.iter().position(|a| a == "agent").unwrap();
+            assert_eq!(
+                mode_at.map(|i| plan.args.get(i + 1).map(String::as_str)),
+                Some(Some("default"))
+            );
+            assert!(
+                mode_at.unwrap() < agent_at,
+                "permission-mode must be a grok top-level flag: {:?}",
+                plan.args
+            );
+            assert_eq!(plan.args.last().map(String::as_str), Some("stdio"));
         }
     }
 

@@ -24,6 +24,8 @@ fn skill_states_async_host_contract() {
         "If `grok_await` ends because of **host** timeout, call `grok_await` again",
         "Do not treat host cancel of the await tool as",
         "`grok_cancel`",
+        "`grok_respond`",
+        "pending_approval",
         "tool_timeout_sec = 3600",
         "Timeout does not cancel the turn",
         "Do not silently edit user config",

@@ -1,8 +1,8 @@
 //! Durable thread/turn/item ledger and generation liveness.
 
 use crate::source_wire::{
-    ApprovalPolicy, Generation, Item, Thread, ThreadSandbox, Turn, TurnStatus, UserInput,
-    FAILURE_WORKER_GONE,
+    parse_approval_decision, ApprovalDecision, ApprovalPolicy, Generation, Item, Thread,
+    ThreadSandbox, Turn, TurnStatus, UserInput, FAILURE_WORKER_GONE,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -281,6 +281,8 @@ impl Ledger {
             stop_reason: String::new(),
             failure_reason: String::new(),
             client_request_id: spec.client_request_id.clone().unwrap_or_default(),
+            pending_request_id: String::new(),
+            pending_decision: String::new(),
             items: Vec::new(),
         };
         write_json_atomic(&self.generation_path(&generation.id), &generation)?;
@@ -359,6 +361,117 @@ impl Ledger {
             return Ok(turn);
         }
         self.publish_terminal_locked(&turn, TurnStatus::Interrupted, "cancelled", "")
+    }
+
+    /// Park `session/request_permission` and wake awaiters with pending_approval.
+    pub fn park_approval(&self, turn_id: &str) -> Result<Turn, LedgerError> {
+        validate_id(turn_id)?;
+        let turn = self.read_turn(turn_id)?;
+        let _lock = lock_exclusive(&self.thread_lock_path(&turn.thread_id))?;
+        let mut turn = self.read_turn(turn_id)?;
+        if turn.status.is_terminal() {
+            return Err(LedgerError::AlreadyTerminal {
+                turn_id: turn.id,
+                status: turn.status,
+            });
+        }
+        if turn.pending_approval() {
+            return Err(LedgerError::InvalidStatus(format!(
+                "turn {} already has pending approval {}",
+                turn.id, turn.pending_request_id
+            )));
+        }
+        turn.pending_request_id = new_id("ap");
+        turn.pending_decision = String::new();
+        write_json_atomic(&self.turn_path(&turn.id), &turn)?;
+        self.wake(&turn.id);
+        Ok(turn)
+    }
+
+    /// Record a grok_respond decision for an exact pending request_id.
+    pub fn respond(
+        &self,
+        request_id: &str,
+        decision: ApprovalDecision,
+    ) -> Result<Turn, LedgerError> {
+        validate_id(request_id)?;
+        let Some(turn) = self.turn_by_pending_request(request_id)? else {
+            return Err(LedgerError::InvalidStatus(format!(
+                "unknown request_id {request_id}"
+            )));
+        };
+        let _lock = lock_exclusive(&self.thread_lock_path(&turn.thread_id))?;
+        let mut turn = self.read_turn(&turn.id)?;
+        if turn.status.is_terminal() {
+            return Err(LedgerError::InvalidStatus(format!(
+                "stale request_id {request_id}"
+            )));
+        }
+        if turn.pending_request_id != request_id {
+            return Err(LedgerError::InvalidStatus(format!(
+                "unknown request_id {request_id}"
+            )));
+        }
+        if !turn.pending_decision.is_empty() {
+            return Err(LedgerError::InvalidStatus(format!(
+                "duplicate request_id {request_id}"
+            )));
+        }
+        turn.pending_decision = decision.as_str().to_string();
+        write_json_atomic(&self.turn_path(&turn.id), &turn)?;
+        self.wake(&turn.id);
+        Ok(turn)
+    }
+
+    /// Wait until a parked request has a decision, or the turn is terminal.
+    pub fn wait_pending_decision(
+        &self,
+        turn_id: &str,
+        request_id: &str,
+    ) -> Result<Option<ApprovalDecision>, LedgerError> {
+        validate_id(turn_id)?;
+        validate_id(request_id)?;
+        let pair = self.waiter(turn_id);
+        let result = (|| loop {
+            let turn = self.observe(turn_id)?;
+            if turn.status.is_terminal() {
+                return Ok(None);
+            }
+            if turn.pending_request_id == request_id && !turn.pending_decision.is_empty() {
+                let decision = parse_approval_decision(&turn.pending_decision)
+                    .map_err(|err| LedgerError::InvalidStatus(err.to_string()))?;
+                return Ok(Some(decision));
+            }
+            let (lock, cv) = &*pair;
+            let guard = lock.lock().unwrap_or_else(|e| e.into_inner());
+            let _ = cv.wait_timeout(guard, Duration::from_millis(20));
+        })();
+        self.release_waiter(turn_id, &pair);
+        result
+    }
+
+    /// Clear a consumed pending approval so another request can park.
+    pub fn clear_pending(&self, turn_id: &str, request_id: &str) -> Result<Turn, LedgerError> {
+        validate_id(turn_id)?;
+        let turn = self.read_turn(turn_id)?;
+        let _lock = lock_exclusive(&self.thread_lock_path(&turn.thread_id))?;
+        let mut turn = self.read_turn(turn_id)?;
+        if turn.pending_request_id == request_id {
+            turn.pending_request_id.clear();
+            turn.pending_decision.clear();
+            write_json_atomic(&self.turn_path(&turn.id), &turn)?;
+            self.wake(&turn.id);
+        }
+        Ok(turn)
+    }
+
+    fn turn_by_pending_request(&self, request_id: &str) -> Result<Option<Turn>, LedgerError> {
+        for turn in self.list_turns(None)? {
+            if turn.pending_request_id == request_id {
+                return Ok(Some(turn));
+            }
+        }
+        Ok(None)
     }
 
     pub fn publish_terminal(
@@ -463,18 +576,20 @@ impl Ledger {
         Ok(generation)
     }
 
-    /// Block until the turn is terminal, or until `timeout` elapses.
+    /// Block until the turn is terminal, parked for `pending_approval`, or
+    /// until `timeout` elapses.
     ///
     /// A timeout returns the latest snapshot (possibly still `inProgress`) and
     /// does not cancel the turn. Owner pid death, child pid death, and ACP EOF
-    /// converge immediately via [`Self::observe`].
+    /// converge immediately via [`Self::observe`]. `pending_approval` is not a
+    /// TurnStatus.
     pub fn wait(&self, turn_id: &str, timeout: Option<Duration>) -> Result<Turn, LedgerError> {
         validate_id(turn_id)?;
         let deadline = timeout.map(|d| Instant::now() + d);
         let pair = self.waiter(turn_id);
         let result = (|| loop {
             let turn = self.observe(turn_id)?;
-            if turn.status.is_terminal() {
+            if turn.status.is_terminal() || turn.pending_approval() {
                 return Ok(turn);
             }
             let slice = Duration::from_millis(20);
@@ -1159,6 +1274,59 @@ mod tests {
         let after = ledger.cancel(&turn.id).unwrap();
         assert_eq!(after.status, TurnStatus::Failed);
         assert_eq!(after.failure_reason, FAILURE_WORKER_GONE);
+    }
+
+    #[test]
+    fn park_and_respond_and_reject_bad_ids() {
+        use crate::source_wire::ApprovalDecision;
+        let (_dir, ledger) = open_tmp();
+        let thread = ledger.create_thread(&sample_thread("/work")).unwrap();
+        let turn = ledger.admit_turn(&sample_turn(&thread.id, None)).unwrap();
+        let parked = ledger.park_approval(&turn.id).unwrap();
+        assert!(parked.pending_approval());
+        let request_id = parked.pending_request_id.clone();
+        let err = ledger
+            .respond("missing-id", ApprovalDecision::Accept)
+            .unwrap_err();
+        assert!(err.to_string().contains("unknown request_id"));
+        let accepted = ledger
+            .respond(&request_id, ApprovalDecision::Accept)
+            .unwrap();
+        assert_eq!(accepted.pending_decision, "accept");
+        let dup = ledger
+            .respond(&request_id, ApprovalDecision::Accept)
+            .unwrap_err();
+        assert!(dup.to_string().contains("duplicate request_id"));
+        ledger
+            .publish_terminal(&turn.id, TurnStatus::Completed, "end_turn", "")
+            .unwrap();
+        let stale = ledger
+            .respond(&request_id, ApprovalDecision::Accept)
+            .unwrap_err();
+        assert!(
+            stale.to_string().contains("stale request_id")
+                || stale.to_string().contains("unknown request_id")
+        );
+    }
+
+    #[test]
+    fn wait_returns_on_pending_approval() {
+        let (_dir, ledger) = open_tmp();
+        let ledger = Arc::new(ledger);
+        let thread = ledger.create_thread(&sample_thread("/work")).unwrap();
+        let turn = ledger.admit_turn(&sample_turn(&thread.id, None)).unwrap();
+        let waiter = {
+            let ledger = ledger.clone();
+            let id = turn.id.clone();
+            std::thread::spawn(move || ledger.wait(&id, Some(Duration::from_secs(2))).unwrap())
+        };
+        std::thread::sleep(Duration::from_millis(20));
+        let parked = ledger.park_approval(&turn.id).unwrap();
+        let got = waiter.join().expect("waiter");
+        assert!(got.pending_approval());
+        assert_eq!(got.status, TurnStatus::InProgress);
+        assert_eq!(got.pending_request_id, parked.pending_request_id);
+        assert_ne!(got.status.as_str(), "pending_approval");
     }
 
     #[test]

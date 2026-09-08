@@ -12,8 +12,8 @@ samchi-for-grok is a Grok-only local worker. MCP v1 is a write-capable
 subagent: default `approvalPolicy=never` and `sandbox=workspace-write`.
 Omit those fields unless the user asked for read-only or gated approvals.
 Do not pass `writableRoots`, `networkAccess`, `excludeSlashTmp`, or
-`excludeTmpdirEnvVar`. `untrusted` and `on-request` are rejected until
-`grok_respond` exists.
+`excludeTmpdirEnvVar`. `untrusted` and `on-request` pause for `grok_respond`.
+Default spawn is still `never` and auto-approves.
 
 Completion is a terminal TurnStatus (`completed`, `interrupted`, `failed`)
 returned by `grok_await`. MCP push is not the completion signal.
@@ -23,6 +23,8 @@ observer timeout, or `grok_wait` timeout as cancel.
 `grok_followup` starts a new turn on the same ACP session via `session/load`.
 Load replay is history, not new items or approvals. If `session/load` is not
 advertised, follow-up fails closed.
+`grok_respond` answers a parked `session/request_permission`. `pending_approval`
+is not a TurnStatus; call `grok_respond` then `grok_await` again.
 
 ## Lifecycle
 
@@ -41,8 +43,8 @@ advertised, follow-up fails closed.
    the same `turn_id`. Never spawn a second turn for the same request. If spawn
    ids were lost, `grok_list` for that cwd and await an existing `inProgress`
    turn instead of spawning.
-7. If `await_reason` is `pending_approval` (only after TASK-013), call
-   `grok_respond` then await again. Default yolo turns never do this.
+7. If `await_reason` is `pending_approval`, call `grok_respond` then await
+   again. Default yolo turns never do this.
 8. If the host deadline is verified too short for `grok_await`, fall back to
    `grok_wait` on the same `turn_id`. Timeout does not cancel the turn.
 

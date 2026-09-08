@@ -43,14 +43,21 @@ pub fn cancel_turn(ledger: &Ledger, turn_id: &str) -> Result<Turn, String> {
 }
 
 pub fn turn_json(turn: &Turn) -> Value {
-    json!({
+    let mut v = json!({
         "turn_id": turn.id,
         "thread_id": turn.thread_id,
         "status": turn.status.as_str(),
         "stop_reason": turn.stop_reason,
         "failure_reason": turn.failure_reason,
         "items": turn.items,
-    })
+    });
+    if turn.pending_approval() {
+        if let Some(obj) = v.as_object_mut() {
+            obj.insert("await_reason".into(), json!("pending_approval"));
+            obj.insert("request_id".into(), json!(turn.pending_request_id));
+        }
+    }
+    v
 }
 
 pub fn bounded_turn_json(turn: &Turn, home: Option<&Path>) -> Value {

@@ -1,6 +1,7 @@
 # MCP async host contract
 
 Status: Adopted. EPIC-003 implemented TASK-008 through TASK-010.
+TASK-013 publishes `grok_respond`.
 Language: English.
 
 This is how Claude Code and Codex supervise a Grok turn through
@@ -40,7 +41,7 @@ nonterminal `inProgress`. Unlisted status strings are Unreadable.
 | --- | --- | --- |
 | `approvalPolicy` | `never` | Unattended implementation. Grok may edit and run commands. |
 | `sandbox` | `workspace-write` | Real coding work, not read-only review. |
-| `approvalPolicy` override | `untrusted` / `on-request` | **Rejected** until TASK-013 publishes `grok_respond`. Do not admit a turn that cannot be resolved. |
+| `approvalPolicy` override | `untrusted` / `on-request` | Admitted. Pause for `grok_respond`. Default spawn remains `never`. |
 
 TASK-010 host smoke uses these defaults (yolo + writable). It must show Grok
 can change a file, not only reply `pong`. A parent that wants review-only
@@ -59,14 +60,14 @@ not-implemented is not done.
 | Tool | When published | Behavior |
 | --- | --- | --- |
 | `grok_spawn` | TASK-009 | MCP only: returns ids immediately. Owner = this MCP server. |
-| `grok_await` | TASK-009 | No samchi-for-grok timeout. Returns on terminal TurnStatus, or (after TASK-013) `await_reason: pending_approval`. |
+| `grok_await` | TASK-009 | No samchi-for-grok timeout. Returns on terminal TurnStatus, or `await_reason: pending_approval`. |
 | `grok_wait` | TASK-009 | Default and max `timeout_ms` 50000 (under a typical 60s host tool deadline, same cap as Gaori). Timeout does **not** cancel the turn. |
 | `grok_status` | TASK-009 | One snapshot. |
 | `grok_result` | TASK-009 | Terminal envelope, or `not_ready`. Truncation: see Result bounds. |
 | `grok_list` | TASK-009 | Recent turns from the disk ledger. |
 | `grok_cancel` | TASK-011 | Process-group teardown → TurnStatus `interrupted`. |
 | `grok_followup` | TASK-012 | New turn, same ACP session (`session/load`). |
-| `grok_respond` | TASK-013 | ACP `session/request_permission` decision. |
+| `grok_respond` | TASK-013 | ACP `session/request_permission` decision. Then `grok_await` again. |
 
 TASK-009 smoke is **six** MCP tools. CLI TASK-008: `start` (print ids, stay
 until terminal), `wait`, `status`, `result`, `list`. CLI has no detached
@@ -99,12 +100,12 @@ in-flight keys return the existing ids (TASK-006).
 
 ## Approval (optional, not v1 default)
 
-Until TASK-013, spawn with `untrusted` or `on-request` is **rejected** before
-any Grok child starts.
-
-After TASK-013, those policies pause the turn (`inProgress`). `grok_await`
-returns `await_reason: pending_approval` plus `request_id`. That return is
-**not** a TurnStatus. The parent calls `grok_respond` then `grok_await` again.
+`untrusted` and `on-request` admit a turn. Those policies pause
+(`inProgress`). `grok_await` returns `await_reason: pending_approval` plus
+`request_id`. That return is **not** a TurnStatus. The parent calls
+`grok_respond` then `grok_await` again. Unknown, stale, or duplicate
+`request_id` values are rejected. Deny, cancel, or worker death while
+pending converges to a terminal TurnStatus without running the gated shell.
 
 Default `never` never takes this path. TASK-010 does not require respond.
 
@@ -127,8 +128,8 @@ The `use-samchi-for-grok` skill (TASK-010) must state:
    the same `turn_id`. Never spawn a second turn for the same request. If spawn
    ids were lost, `grok_list` for that cwd and await an existing `inProgress`
    turn instead of spawning.
-7. If `await_reason` is `pending_approval` (only after TASK-013), call
-   `grok_respond` then await again. Default yolo turns never do this.
+7. If `await_reason` is `pending_approval`, call `grok_respond` then await
+   again. Default yolo turns never do this.
 8. If the host deadline is verified too short for `grok_await`, fall back to
    `grok_wait` on the same `turn_id`.
 

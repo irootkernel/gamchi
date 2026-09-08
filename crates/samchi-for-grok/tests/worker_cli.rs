@@ -199,3 +199,94 @@ fn list_and_result_json() {
     assert!(v["turns"].as_array().unwrap().is_empty());
     let _ = Path::new(home.path());
 }
+
+#[test]
+fn respond_accepts_pending_then_cancel() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut child = Command::new(bin())
+        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .env("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")
+        .args([
+            "worker",
+            "start",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--cwd",
+            cwd.path().to_str().unwrap(),
+            "--approval-policy",
+            "untrusted",
+            "gated",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("start");
+    let mut stdout = child.stdout.take().expect("stdout");
+    let mut line = String::new();
+    let mut reader = std::io::BufReader::new(&mut stdout);
+    use std::io::BufRead;
+    reader.read_line(&mut line).expect("ids");
+    let v: Value = serde_json::from_str(line.trim()).expect("json");
+    let turn_id = v["turn_id"].as_str().expect("turn_id");
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let ledger = Ledger::open(home.path().to_path_buf()).expect("ledger");
+    let parked = ledger.park_approval(turn_id).expect("park");
+    let waited = Command::new(bin())
+        .args([
+            "worker",
+            "wait",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--turn-id",
+            turn_id,
+            "--timeout-ms",
+            "5000",
+        ])
+        .output()
+        .expect("wait");
+    assert!(
+        waited.status.success(),
+        "stderr {}",
+        String::from_utf8_lossy(&waited.stderr)
+    );
+    let snap: Value = serde_json::from_str(&String::from_utf8_lossy(&waited.stdout)).unwrap();
+    assert_eq!(snap["status"], "inProgress");
+    assert_eq!(snap["await_reason"], "pending_approval");
+    let request_id = parked.pending_request_id;
+    let respond = Command::new(bin())
+        .args([
+            "worker",
+            "respond",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--request-id",
+            &request_id,
+            "--decision",
+            "accept",
+        ])
+        .output()
+        .expect("respond");
+    assert!(
+        respond.status.success(),
+        "stderr {}",
+        String::from_utf8_lossy(&respond.stderr)
+    );
+    let cancel = Command::new(bin())
+        .args([
+            "worker",
+            "cancel",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--turn-id",
+            turn_id,
+        ])
+        .output()
+        .expect("cancel");
+    assert!(cancel.status.success());
+    let _ = child.wait();
+}

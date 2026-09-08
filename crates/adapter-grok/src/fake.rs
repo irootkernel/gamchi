@@ -2,9 +2,11 @@
 
 use agent_client_protocol::schema::v1::{
     AgentCapabilities, ContentBlock, ContentChunk, InitializeRequest, InitializeResponse,
-    LoadSessionRequest, LoadSessionResponse, NewSessionRequest, NewSessionResponse, PromptRequest,
-    PromptResponse, SessionId, SessionNotification, SessionUpdate, StopReason, TextContent,
-    ToolCall, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    LoadSessionRequest, LoadSessionResponse, NewSessionRequest, NewSessionResponse,
+    PermissionOption, PermissionOptionKind, PromptRequest, PromptResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, SessionId, SessionNotification,
+    SessionUpdate, StopReason, TextContent, ToolCall, ToolCallStatus, ToolCallUpdate,
+    ToolCallUpdateFields, ToolKind,
 };
 use agent_client_protocol::{Agent, ConnectTo, Result};
 
@@ -54,13 +56,63 @@ pub async fn run_fake_agent(transport: impl ConnectTo<Agent>) -> Result<()> {
                     let secs: u64 = secs.parse().unwrap_or(60);
                     tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
                 }
-                emit_stub_updates(&connection, &req.session_id)?;
-                responder.respond(PromptResponse::new(StopReason::EndTurn))
+                if std::env::var_os("SAMCHI_FOR_GROK_FAKE_ASK_PERMISSION").is_none() {
+                    emit_stub_updates(&connection, &req.session_id)?;
+                    return responder.respond(PromptResponse::new(StopReason::EndTurn));
+                }
+                let spawned = connection.clone();
+                connection
+                    .spawn(async move { prompt_with_permission(req, responder, spawned).await })?;
+                Ok(())
             },
             agent_client_protocol::on_receive_request!(),
         )
         .connect_to(transport)
         .await
+}
+
+async fn prompt_with_permission(
+    req: PromptRequest,
+    responder: agent_client_protocol::Responder<PromptResponse>,
+    connection: agent_client_protocol::ConnectionTo<agent_client_protocol::Client>,
+) -> Result<()> {
+    let options = vec![
+        PermissionOption::new("allow-once", "Allow once", PermissionOptionKind::AllowOnce),
+        PermissionOption::new(
+            "allow-always",
+            "Allow always",
+            PermissionOptionKind::AllowAlways,
+        ),
+        PermissionOption::new(
+            "reject-once",
+            "Reject once",
+            PermissionOptionKind::RejectOnce,
+        ),
+    ];
+    let tool = ToolCallUpdate::new(
+        "perm-shell",
+        ToolCallUpdateFields::new().kind(ToolKind::Execute),
+    );
+    let resp = connection
+        .send_request(RequestPermissionRequest::new(
+            req.session_id.clone(),
+            tool,
+            options,
+        ))
+        .block_task()
+        .await?;
+    let allow = matches!(
+        resp.outcome,
+        RequestPermissionOutcome::Selected(ref sel)
+            if sel.option_id.to_string().contains("allow")
+    );
+    if !allow {
+        responder.respond(PromptResponse::new(StopReason::Cancelled))?;
+        return Ok(());
+    }
+    emit_stub_updates(&connection, &req.session_id)?;
+    responder.respond(PromptResponse::new(StopReason::EndTurn))?;
+    Ok(())
 }
 
 fn emit_stub_updates(

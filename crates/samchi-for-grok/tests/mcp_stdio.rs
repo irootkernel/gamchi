@@ -105,7 +105,8 @@ fn tools_list_includes_cancel_and_spawn_await() {
             "grok_result",
             "grok_list",
             "grok_cancel",
-            "grok_followup"
+            "grok_followup",
+            "grok_respond"
         ]
     );
     let spawn = rpc.tool(
@@ -123,7 +124,7 @@ fn tools_list_includes_cancel_and_spawn_await() {
 }
 
 #[test]
-fn untrusted_spawn_rejected() {
+fn untrusted_spawn_is_admitted() {
     let home = tempfile::tempdir().expect("home");
     let cwd = tempfile::tempdir().expect("cwd");
     let mut rpc = Rpc::start(home.path().to_str().unwrap());
@@ -131,20 +132,18 @@ fn untrusted_spawn_rejected() {
         "initialize",
         json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
     );
-    let resp = rpc.call(
-        "tools/call",
+    let spawn = rpc.tool(
+        "grok_spawn",
         json!({
-            "name": "grok_spawn",
-            "arguments": {
-                "prompt": "x",
-                "cwd": cwd.path().to_str().unwrap(),
-                "approvalPolicy": "untrusted"
-            }
+            "prompt": "x",
+            "cwd": cwd.path().to_str().unwrap(),
+            "approvalPolicy": "untrusted"
         }),
     );
-    assert_eq!(resp["result"]["isError"], true);
-    let text = resp["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(text.contains("untrusted"), "{text}");
+    let turn_id = spawn["turn_id"].as_str().expect("turn_id");
+    assert!(!turn_id.is_empty());
+    let done = rpc.tool("grok_await", json!({"turn_id": turn_id}));
+    assert_eq!(done["status"], "completed", "untrusted spawn {done}");
     let extra = rpc.call(
         "tools/call",
         json!({
@@ -159,6 +158,98 @@ fn untrusted_spawn_rejected() {
     assert_eq!(extra["result"]["isError"], true);
     let extra_text = extra["result"]["content"][0]["text"].as_str().unwrap();
     assert!(extra_text.contains("unenforceable"), "{extra_text}");
+}
+
+fn park_in_progress(home: &std::path::Path, turn_id: &str) -> String {
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let ledger = Ledger::open(home.to_path_buf()).expect("ledger");
+    ledger
+        .park_approval(turn_id)
+        .expect("park")
+        .pending_request_id
+}
+
+#[test]
+fn grok_respond_accepts_pending_approval() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut rpc = Rpc::start_hang(home.path().to_str().unwrap());
+    let _ = rpc.call(
+        "initialize",
+        json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
+    );
+    let spawn = rpc.tool(
+        "grok_spawn",
+        json!({
+            "prompt": "gated",
+            "cwd": cwd.path().to_str().unwrap(),
+            "approvalPolicy": "untrusted"
+        }),
+    );
+    let turn_id = spawn["turn_id"].as_str().unwrap().to_string();
+    let request_id = park_in_progress(home.path(), &turn_id);
+    let parked = rpc.tool("grok_await", json!({"turn_id": turn_id}));
+    assert_eq!(parked["status"], "inProgress");
+    assert_eq!(parked["await_reason"], "pending_approval");
+    assert_eq!(parked["request_id"], request_id);
+    assert_ne!(parked["status"], "pending_approval");
+    let unknown = rpc.call(
+        "tools/call",
+        json!({
+            "name": "grok_respond",
+            "arguments": {"request_id": "missing-id", "decision": "accept"}
+        }),
+    );
+    assert_eq!(unknown["result"]["isError"], true);
+    let unknown_text = unknown["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(
+        unknown_text.contains("unknown request_id"),
+        "{unknown_text}"
+    );
+    let answered = rpc.tool(
+        "grok_respond",
+        json!({"request_id": request_id, "decision": "accept"}),
+    );
+    assert_eq!(answered["status"], "inProgress");
+    let dup = rpc.call(
+        "tools/call",
+        json!({
+            "name": "grok_respond",
+            "arguments": {"request_id": request_id, "decision": "accept"}
+        }),
+    );
+    assert_eq!(dup["result"]["isError"], true);
+    let dup_text = dup["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(dup_text.contains("duplicate request_id"), "{dup_text}");
+    let cancelled = rpc.tool("grok_cancel", json!({"turn_id": turn_id}));
+    assert_eq!(cancelled["status"], "interrupted");
+}
+
+#[test]
+fn pending_cancel_goes_terminal() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut rpc = Rpc::start_hang(home.path().to_str().unwrap());
+    let _ = rpc.call(
+        "initialize",
+        json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
+    );
+    let spawn = rpc.tool(
+        "grok_spawn",
+        json!({
+            "prompt": "gated",
+            "cwd": cwd.path().to_str().unwrap(),
+            "approvalPolicy": "on-request"
+        }),
+    );
+    let turn_id = spawn["turn_id"].as_str().unwrap().to_string();
+    let _ = park_in_progress(home.path(), &turn_id);
+    let parked = rpc.tool("grok_await", json!({"turn_id": turn_id}));
+    assert_eq!(parked["await_reason"], "pending_approval");
+    let cancelled = rpc.tool("grok_cancel", json!({"turn_id": turn_id}));
+    assert_eq!(cancelled["status"], "interrupted");
+    let done = rpc.tool("grok_await", json!({"turn_id": turn_id}));
+    assert_eq!(done["status"], "interrupted");
 }
 
 #[test]
