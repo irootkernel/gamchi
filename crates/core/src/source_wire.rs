@@ -2,6 +2,7 @@
 //! policy for ThreadItems. The subset is a Dolgorae client requirement, not
 //! this module's item allowlist. There is no ad hoc job JSON.
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 
 /// SHA-256 of docs/protocol/references/dolgorae-codex-0.149.0-required-subset.json.
@@ -78,6 +79,19 @@ impl ApprovalPolicy {
     }
 }
 
+impl Serialize for ApprovalPolicy {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ApprovalPolicy {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        parse_approval_policy(&s).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Subset thread sandbox string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ThreadSandbox {
@@ -91,6 +105,19 @@ impl ThreadSandbox {
             Self::ReadOnly => "read-only",
             Self::WorkspaceWrite => "workspace-write",
         }
+    }
+}
+
+impl Serialize for ThreadSandbox {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ThreadSandbox {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        parse_thread_sandbox(&s).map_err(serde::de::Error::custom)
     }
 }
 
@@ -133,7 +160,27 @@ impl TurnStatus {
             Self::Failed => "failed",
         }
     }
+
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Completed | Self::Interrupted | Self::Failed)
+    }
 }
+
+impl Serialize for TurnStatus {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for TurnStatus {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        parse_turn_status(&s).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Dead-generation failure reason. Not a TurnStatus.
+pub const FAILURE_WORKER_GONE: &str = "worker_gone";
 
 /// Public ThreadItem type samchi-for-grok may emit (ACP-projectable).
 pub const ITEM_USER_MESSAGE: &str = "userMessage";
@@ -179,7 +226,7 @@ impl ApprovalDecision {
 }
 
 /// Durable conversation identity plus resolved defaults.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Thread {
     pub id: String,
     pub cwd: String,
@@ -188,12 +235,17 @@ pub struct Thread {
     pub approval_policy: ApprovalPolicy,
     pub developer_instructions: String,
     pub acp_session_id: String,
+    /// Empty when the thread has no inProgress turn.
+    #[serde(default)]
+    pub in_progress_turn_id: String,
 }
 
 /// One admitted prompt on a thread.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Turn {
     pub id: String,
+    pub thread_id: String,
+    pub generation_id: String,
     pub status: TurnStatus,
     pub input: Vec<UserInput>,
     pub model: String,
@@ -202,17 +254,37 @@ pub struct Turn {
     pub stop_reason: String,
     /// e.g. worker_gone; empty on completed.
     pub failure_reason: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub client_request_id: String,
+    #[serde(default)]
+    pub items: Vec<Item>,
+}
+
+/// Owner process for an in-flight turn (`pid` + start epoch).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Generation {
+    pub id: String,
+    #[serde(default)]
+    pub turn_id: String,
+    pub owner_pid: u32,
+    pub started_epoch: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_pid: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_started_epoch: Option<u64>,
+    #[serde(default)]
+    pub child_eof: bool,
 }
 
 /// One turn/start input element. Text is the v1 worker path.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserInput {
     pub kind: String,
     pub text: String,
 }
 
 /// One ordered ThreadItem on a turn.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Item {
     pub id: String,
     pub item_type: String,
@@ -255,6 +327,20 @@ pub fn parse_thread_sandbox(v: &str) -> Result<ThreadSandbox, UnsupportedValueEr
         "workspace-write" => Ok(ThreadSandbox::WorkspaceWrite),
         _ => Err(UnsupportedValueError {
             kind: "sandbox",
+            value: v.to_string(),
+        }),
+    }
+}
+
+/// Rejects unknown values rather than ignoring them.
+pub fn parse_turn_status(v: &str) -> Result<TurnStatus, UnsupportedValueError> {
+    match v {
+        "inProgress" => Ok(TurnStatus::InProgress),
+        "completed" => Ok(TurnStatus::Completed),
+        "interrupted" => Ok(TurnStatus::Interrupted),
+        "failed" => Ok(TurnStatus::Failed),
+        _ => Err(UnsupportedValueError {
+            kind: "turnStatus",
             value: v.to_string(),
         }),
     }
@@ -496,6 +582,11 @@ mod tests {
         assert_eq!(map_stop_reason("refusal"), TurnStatus::Failed);
         assert_eq!(DEFAULT_APPROVAL_POLICY, ApprovalPolicy::Never);
         assert_eq!(DEFAULT_THREAD_SANDBOX, ThreadSandbox::WorkspaceWrite);
+        assert!(parse_turn_status("always").is_err(), "expected rejection");
+        assert_eq!(parse_turn_status("failed").unwrap(), TurnStatus::Failed);
+        assert!(TurnStatus::Failed.is_terminal());
+        assert!(!TurnStatus::InProgress.is_terminal());
+        assert_eq!(FAILURE_WORKER_GONE, "worker_gone");
     }
 
     #[test]

@@ -9,6 +9,9 @@ The root `Makefile` owns test orchestration. The executable handlers in the
 The tree is a Cargo workspace (`crates/core`, `crates/docscheck`, `crates/samchi-for-grok`, `crates/adapter-grok`). `make test`
 runs `cargo fmt --check` (must not rewrite), clippy, docscheck, and
 `cargo test`. Subset digest and vocabulary tests live in the core crate.
+The TASK-006 disk ledger (home resolution, admit/lock, atomic terminal
+publish, waiter wakeup, generation liveness, `client_request_id` dedup) is
+tested in `samchi-core`, including two-process lock and owner-death helpers.
 The adapter crate's fake ACP agent and stdio harness live in `crates/adapter-grok`.
 TASK-005's go ADR is checked against that capture parser; `make test` still
 does not spawn live Grok.
@@ -24,6 +27,8 @@ does not spawn live Grok.
 Focused lane: `cargo test -p samchi-core`, `cargo test -p docscheck`, `cargo test -p samchi-for-grok`, or `cargo test -p samchi-adapter-grok` for one
 package. There is no aggregate integration or e2e target yet; later Tasks add
 those atomically with the behavior they prove. Live Grok is not spawned here.
+Ledger process helpers in `crates/core/tests/ledger_processes.rs` spawn the
+test binary and dummy `sleep` children only.
 
 ## Stage mapping
 

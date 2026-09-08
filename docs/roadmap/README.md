@@ -46,14 +46,14 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: `TASK-006` (EPIC-003).
+Next eligible Task: `TASK-007` (EPIC-003).
 
 ## Phase index
 
 | Phase | Outcome | Status | Epics |
 | --- | --- | --- | --- |
 | Phase 1 — Contract and feasibility | Test gate, internal thread/turn/item types, ACP go/no-go | `Completed` | EPIC-001..EPIC-002 |
-| Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `Planned` | EPIC-003..EPIC-004 |
+| Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `In Progress` | EPIC-003..EPIC-004 |
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Planned` | EPIC-005 |
 
 ## EPIC-001: Foundation
@@ -90,7 +90,7 @@ Decided from the TASK-004 capture: live `grok agent stdio` is the v1 worker
 
 ## EPIC-003: Async worker and MCP
 
-Status: `Planned`
+Status: `In Progress`
 
 Depends on: EPIC-002 = go
 
@@ -99,7 +99,7 @@ process lifetimes differ** (see [MCP async host contract](../specs/mcp-async-hos
 
 | Task | Title | Status | Depends on | Done when |
 | --- | --- | --- | --- | --- |
-| [TASK-006](#epic-003-async-worker-and-mcp) | Disk ledger (thread/turn/item, generation) | `Planned` | TASK-005 | Home is --home, SAMCHI_FOR_GROK_HOME, or ~/.samchi-for-grok. One inProgress turn per thread, lock, atomic terminal publish, waiter wakeup. samchi-for-grok pid and Grok child/ACP EOF both resolve waiters. Dead generation → failed worker_gone unless a terminal record already exists. Optional client_request_id dedup |
+| [TASK-006](#epic-003-async-worker-and-mcp) | Disk ledger (thread/turn/item, generation) | `Completed` | TASK-005 | Home is --home, SAMCHI_FOR_GROK_HOME, or ~/.samchi-for-grok. One inProgress turn per thread, lock, atomic terminal publish, waiter wakeup. samchi-for-grok pid and Grok child/ACP EOF both resolve waiters. Dead generation → failed worker_gone unless a terminal record already exists. Optional client_request_id dedup |
 | [TASK-007](#epic-003-async-worker-and-mcp) | ACP adapter: spawn grok agent, update → item | `Planned` | TASK-006, TASK-020 | Follows acp-item-mapping.md and grok-launch.md. No early complete on in_progress tool updates. live turn edits a file. Unenforceable sandbox/approval rejected |
 | [TASK-008](#epic-003-async-worker-and-mcp) | CLI worker start (owns process), wait, status, result, list | `Planned` | TASK-007 | `--json`. start prints ids then stays until terminal. No CLI daemon. wait 50s does not cancel. Usage matches published verbs only |
 | [TASK-009](#epic-003-async-worker-and-mcp) | `samchi-for-grok mcp` stdio; six tools | `Planned` | TASK-008 | tools/list is spawn, await, wait, status, result, list. spawn→await with default never + workspace-write. untrusted spawn rejected. host timeout of await does not cancel the turn |
