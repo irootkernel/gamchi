@@ -1,6 +1,8 @@
 //! Command samchi-for-grok is the local Grok worker, MCP host surface, and later
 //! app-server. TASK-008 publishes CLI worker start/wait/status/result/list.
 
+mod mcp;
+mod ops;
 mod worker;
 
 use std::io::{self, Write};
@@ -20,7 +22,7 @@ const USAGE: &str = "\
 Usage:
   samchi-for-grok version [--json]
   samchi-for-grok worker <start|wait|status|result|list> ...
-  samchi-for-grok mcp
+  samchi-for-grok mcp [--home <absolute-path>]
   samchi-for-grok app-server --listen unix://<absolute-path> [--home <absolute-path>]
 ";
 
@@ -58,7 +60,12 @@ fn run(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
         }
         _ => match args[0] {
             "worker" => run_worker(&args[1..], stdout, stderr),
-            "mcp" | "app-server" => {
+            "mcp" => {
+                let stdin = io::stdin();
+                let mut lock = stdin.lock();
+                mcp::run_mcp(&args[1..], &mut lock, stdout)
+            }
+            "app-server" => {
                 write_all(
                     stderr,
                     &format!(
@@ -195,19 +202,15 @@ mod tests {
 
     #[test]
     fn unimplemented_surfaces() {
-        for cmd in ["mcp", "app-server"] {
-            let mut stdout = Vec::new();
-            let mut stderr = Vec::new();
-            let code = run(&[cmd], &mut stdout, &mut stderr);
-            assert_eq!(code, 1, "{cmd}: exit {code}");
-            let err = String::from_utf8_lossy(&stderr);
-            assert!(
-                err.contains(&format!(
-                    "SAMCHI_FOR_GROK_STARTUP_ERROR NOT_IMPLEMENTED {cmd}"
-                )),
-                "{cmd}: stderr {err:?}"
-            );
-        }
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let code = run(&["app-server"], &mut stdout, &mut stderr);
+        assert_eq!(code, 1);
+        let err = String::from_utf8_lossy(&stderr);
+        assert!(
+            err.contains("SAMCHI_FOR_GROK_STARTUP_ERROR NOT_IMPLEMENTED app-server"),
+            "stderr {err:?}"
+        );
     }
 
     #[test]

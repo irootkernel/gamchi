@@ -41,6 +41,7 @@ pub struct TurnRequest {
     pub extra: ExtraSpawnFields,
     pub model: String,
     pub command: AgentCommand,
+    pub client_request_id: Option<String>,
 }
 
 /// Terminal turn plus git `files_changed`.
@@ -153,7 +154,7 @@ async fn run_turn_async(
         }],
         model: req.model.clone(),
         effort: String::new(),
-        client_request_id: None,
+        client_request_id: req.client_request_id.clone(),
     })?;
     on_admit(&turn);
     let generation_id = turn.generation_id.clone();
@@ -250,7 +251,12 @@ async fn run_turn_async(
             let ledger = ledger.clone();
             let turn_id = turn_id.clone();
             async move |connection: ConnectionTo<Agent>| {
-                drive_prompt(&connection, &cwd, &prompt, &shared, &ledger, &turn_id).await
+                let stop =
+                    drive_prompt(&connection, &cwd, &prompt, &shared, &ledger, &turn_id).await?;
+                // Concurrent wait/observe treats a dead child as worker_gone.
+                // Publish while the ACP connection (and child) is still open.
+                let _ = publish_stop(&ledger, &shared, &turn_id, stop);
+                Ok(stop)
             }
         })
         .await;
@@ -364,21 +370,15 @@ fn read_text_file(cwd: &Path, path: &Path) -> io::Result<String> {
     fs::read_to_string(abs)
 }
 
-fn finish_turn(
+fn publish_stop(
     ledger: &Ledger,
     shared: &Arc<Mutex<Shared>>,
     turn_id: &str,
     stop: StopReason,
-    cwd: &Path,
-    start_head: Option<&str>,
-) -> Result<TurnOutcome, AdapterError> {
+) -> Result<Turn, AdapterError> {
     let fatal = shared.lock().expect("mapper").fatal.clone();
     if let Some(fatal) = fatal {
-        let turn = ledger.publish_terminal(turn_id, TurnStatus::Failed, "", &fatal)?;
-        return Err(AdapterError::ExcludedFatal(format!(
-            "turn {} failed: {fatal}",
-            turn.id
-        )));
+        return Ok(ledger.publish_terminal(turn_id, TurnStatus::Failed, "", &fatal)?);
     }
     let stop_s = stop_reason_str(stop);
     let status = map_stop_reason(stop_s);
@@ -387,7 +387,28 @@ fn finish_turn(
     } else {
         ""
     };
-    let turn = ledger.publish_terminal(turn_id, status, stop_s, failure)?;
+    Ok(ledger.publish_terminal(turn_id, status, stop_s, failure)?)
+}
+
+fn finish_turn(
+    ledger: &Ledger,
+    shared: &Arc<Mutex<Shared>>,
+    turn_id: &str,
+    stop: StopReason,
+    cwd: &Path,
+    start_head: Option<&str>,
+) -> Result<TurnOutcome, AdapterError> {
+    let turn = match ledger.read_turn(turn_id) {
+        Ok(turn) if turn.status.is_terminal() => turn,
+        _ => publish_stop(ledger, shared, turn_id, stop)?,
+    };
+    let fatal = shared.lock().expect("mapper").fatal.clone();
+    if let Some(fatal) = fatal {
+        return Err(AdapterError::ExcludedFatal(format!(
+            "turn {} failed: {fatal}",
+            turn.id
+        )));
+    }
     let (files_changed, files_changed_complete) = git_files_changed(cwd, start_head);
     Ok(TurnOutcome {
         turn,

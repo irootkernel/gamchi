@@ -87,6 +87,7 @@ fn cmd_start(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u
         extra: ExtraSpawnFields::default(),
         model: "grok".to_string(),
         command: acp_command(),
+        client_request_id: None,
     };
     let printed = std::sync::Mutex::new(false);
     let result = run_turn_on_admit(ledger, &req, |turn| {

@@ -81,7 +81,9 @@ Grok SDKs. The TASK-004 live `grok agent stdio` capture is
 `crates/adapter-grok/captures/task-004` and is parsed offline. TASK-007
 spawns parent-owned `grok --sandbox workspace agent --no-leader
 --always-approve stdio` and maps `session/update` onto `source_wire` items.
-CLI and MCP verbs stay unpublished until TASK-008/009.
+TASK-008 publishes CLI worker start/wait/status/result/list. TASK-009
+publishes MCP stdio six tools (`grok_spawn` returns immediately; the MCP
+process owns the child). `app-server` stays unpublished until EPIC-005.
 
 ## v1 scope
 
