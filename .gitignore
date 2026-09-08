@@ -4,6 +4,9 @@
 .sorage/
 .samchi-for-grok/
 .omc/
+# Mulgae project policy and local state
+/.mulgae/*
+!/.mulgae/config.yaml
 # Gaori portable policy and local state
 .gaori/*
 !.gaori/tester.yaml

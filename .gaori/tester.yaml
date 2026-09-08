@@ -1,0 +1,17 @@
+version: 2
+commands:
+  test:
+    command: ["make", "test"]
+    tags: [acceptance]
+    parser: generic
+    timeout_sec: 600
+  test-prepare:
+    command: ["make", "test-prepare"]
+    tags: [prepare]
+    parser: generic
+    timeout_sec: 600
+  test-unit:
+    command: ["make", "test-unit"]
+    tags: [unit, rust]
+    parser: cargo-test
+    timeout_sec: 600
