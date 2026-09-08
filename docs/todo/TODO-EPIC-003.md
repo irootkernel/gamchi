@@ -47,7 +47,7 @@ TASK-007 also depends on TASK-020 (Completed).
 | --- | --- | --- | --- |
 | TASK-006 | `samchi-core` ledger (already shipped) | `make test` offline | Spawn Grok; publish CLI/MCP |
 | TASK-007 | `samchi-adapter-grok` spawn + ACP map; core stays SDK-free | Offline mapping tests in `make test`; **live** turn that edits a file is required evidence outside `make test` (`cargo test -p samchi-adapter-grok --test live_edit -- --ignored`) | Early-complete `in_progress` tools; `grok -p`; publish CLI/MCP verbs |
-| TASK-008 | `samchi-for-grok` CLI facade | CLI `--json` tests; `wait` 50s does not cancel | CLI daemon; detached await |
+| TASK-008 | `samchi-for-grok` CLI facade | CLI `--json` tests; `wait` timeout does not cancel | CLI daemon; detached await |
 | TASK-009 | MCP facade; six tools | tools/list + spawn→await; untrusted rejected; host timeout of await does not cancel | Publish cancel/follow-up/respond; MCP push as completion |
 | TASK-010 | Host skill + config snippets | Exercise each available host; record which; spawn→await edits a file | Silently edit user host config; treat observer timeout as `grok_cancel` |
 

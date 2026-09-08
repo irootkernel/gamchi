@@ -101,16 +101,26 @@ struct Shared {
 
 /// Admit a ledger turn, spawn the ACP child, map updates, publish terminal.
 pub fn run_turn(ledger: Arc<Ledger>, req: &TurnRequest) -> Result<TurnOutcome, AdapterError> {
+    run_turn_on_admit(ledger, req, |_| {})
+}
+
+/// Like [`run_turn`], calling `on_admit` after the turn is durable and before the child is driven.
+pub fn run_turn_on_admit(
+    ledger: Arc<Ledger>,
+    req: &TurnRequest,
+    on_admit: impl FnOnce(&Turn),
+) -> Result<TurnOutcome, AdapterError> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .map_err(|err| AdapterError::Acp(err.to_string()))?;
-    rt.block_on(run_turn_async(ledger, req))
+    rt.block_on(run_turn_async(ledger, req, on_admit))
 }
 
 async fn run_turn_async(
     ledger: Arc<Ledger>,
     req: &TurnRequest,
+    on_admit: impl FnOnce(&Turn),
 ) -> Result<TurnOutcome, AdapterError> {
     let plan = match &req.command {
         AgentCommand::Grok { program } => plan_launch(&LaunchRequest {
@@ -145,6 +155,7 @@ async fn run_turn_async(
         effort: String::new(),
         client_request_id: None,
     })?;
+    on_admit(&turn);
     let generation_id = turn.generation_id.clone();
     let turn_id = turn.id.clone();
 

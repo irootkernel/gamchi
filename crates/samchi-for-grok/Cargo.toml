@@ -3,3 +3,11 @@ name = "samchi-for-grok"
 version = "0.0.0"
 edition = "2021"
 publish = false
+
+[dependencies]
+samchi-adapter-grok = { path = "../adapter-grok" }
+samchi-core = { path = "../core" }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"

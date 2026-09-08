@@ -1,9 +1,11 @@
 //! Command samchi-for-grok is the local Grok worker, MCP host surface, and later
-//! app-server. TASK-021 only advertises the command grammar; worker, MCP, and
-//! app-server are not implemented yet.
+//! app-server. TASK-008 publishes CLI worker start/wait/status/result/list.
+
+mod worker;
 
 use std::io::{self, Write};
 use std::process::ExitCode;
+use worker::run_worker;
 
 /// Honest initialize identity. It is not Codex or CCAS.
 /// Kept out of `samchi-core`.
@@ -17,7 +19,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const USAGE: &str = "\
 Usage:
   samchi-for-grok version [--json]
-  samchi-for-grok worker <start|wait|status|result|cancel|list> ...
+  samchi-for-grok worker <start|wait|status|result|list> ...
   samchi-for-grok mcp
   samchi-for-grok app-server --listen unix://<absolute-path> [--home <absolute-path>]
 ";
@@ -55,7 +57,8 @@ fn run(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
             1
         }
         _ => match args[0] {
-            "worker" | "mcp" | "app-server" => {
+            "worker" => run_worker(&args[1..], stdout, stderr),
+            "mcp" | "app-server" => {
                 write_all(
                     stderr,
                     &format!(
@@ -192,7 +195,7 @@ mod tests {
 
     #[test]
     fn unimplemented_surfaces() {
-        for cmd in ["worker", "mcp", "app-server"] {
+        for cmd in ["mcp", "app-server"] {
             let mut stdout = Vec::new();
             let mut stderr = Vec::new();
             let code = run(&[cmd], &mut stdout, &mut stderr);
@@ -205,5 +208,20 @@ mod tests {
                 "{cmd}: stderr {err:?}"
             );
         }
+    }
+
+    #[test]
+    fn worker_usage_omits_unpublished_verbs() {
+        assert!(!USAGE.contains("cancel"));
+        assert!(!worker::WORKER_USAGE.contains("cancel"));
+        assert!(worker::WORKER_USAGE.contains("worker start --json"));
+        assert!(worker::WORKER_USAGE.contains("worker wait --json"));
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let code = run(&["worker", "cancel"], &mut stdout, &mut stderr);
+        assert_eq!(code, 1);
+        let err = String::from_utf8_lossy(&stderr);
+        assert!(err.contains("INVALID_CONFIG"), "{err}");
+        assert!(err.contains("worker start --json"), "{err}");
     }
 }

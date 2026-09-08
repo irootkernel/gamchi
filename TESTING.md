@@ -27,8 +27,10 @@ capture parser.
 | Unit | `make test-unit` |
 
 Focused lane: `cargo test -p samchi-core`, `cargo test -p docscheck`, `cargo test -p samchi-for-grok`, or `cargo test -p samchi-adapter-grok` for one
-package. There is no aggregate integration or e2e target yet; later Tasks add
-those atomically with the behavior they prove. Live Grok is not spawned here.
+package. CLI worker tests in `samchi-for-grok` drive the fake ACP agent via
+`SAMCHI_FOR_GROK_ACP_PROGRAM`. There is no aggregate integration or e2e target
+yet; later Tasks add those atomically with the behavior they prove. Live Grok
+is not spawned here.
 Ledger process helpers in `crates/core/tests/ledger_processes.rs` spawn the
 test binary and dummy `sleep` children only.
 

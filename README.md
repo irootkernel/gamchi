@@ -33,8 +33,8 @@ Dolgorae.
 
 ## Status
 
-See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-008
-(CLI worker start, wait, status, result, list). ACP go is
+See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-009
+(`samchi-for-grok mcp` stdio; six tools). ACP go is
 [ADR-0002](docs/architecture-decision-records/0002-grok-agent-stdio.md).
 The TASK-004 live `grok agent stdio` capture is
 [crates/adapter-grok/captures/task-004](crates/adapter-grok/captures/task-004).
@@ -49,4 +49,5 @@ make build
 ./bin/samchi-for-grok version
 ```
 
-`worker`, `mcp`, and `app-server` are not implemented yet.
+`samchi-for-grok worker start|wait|status|result|list --json` is implemented.
+`mcp` and `app-server` are not implemented yet.
