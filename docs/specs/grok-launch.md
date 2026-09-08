@@ -40,6 +40,21 @@ on parent-owned `grok agent stdio`; `grok agent leader` / `grok agent serve`
 were not captured as the owner. Stdio connect is not proof of an isolated
 backend.
 
+v1 argv for default never + workspace-write is:
+
+```text
+grok --cwd <abs> --sandbox workspace agent --no-leader --always-approve stdio
+```
+
+`--sandbox` is a top-level `grok` flag. `grok agent --sandbox` is rejected by
+grok 1.0.13.
+
+## ACP filesystem
+
+Host-side `fs/read_text_file` and `fs/write_text_file` stay inside the turn
+`cwd`. Paths that escape cwd are refused. Missing reads return empty. Grok's
+`--sandbox workspace` does not by itself confine this channel.
+
 ## Files changed
 
 `files_changed` is `git diff --name-only` against the turn’s start HEAD in

@@ -81,6 +81,7 @@ Grok SDKs. The TASK-004 live `grok agent stdio` capture is
 `crates/adapter-grok/captures/task-004` and is parsed offline. TASK-007
 spawns parent-owned `grok --sandbox workspace agent --no-leader
 --always-approve stdio` and maps `session/update` onto `source_wire` items.
+ACP `fs/read_text_file` and `fs/write_text_file` stay inside the turn cwd.
 TASK-008 publishes CLI worker start/wait/status/result/list. TASK-009
 publishes MCP stdio six tools (`grok_spawn` returns immediately; the MCP
 process owns the child). TASK-010 ships `use-samchi-for-grok` and Codex/Claude

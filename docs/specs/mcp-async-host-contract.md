@@ -1,6 +1,6 @@
 # MCP async host contract
 
-Status: Adopted design for EPIC-003. Implementation starts at TASK-008.
+Status: Adopted. EPIC-003 implemented TASK-008 through TASK-010.
 Language: English.
 
 This is how Claude Code and Codex supervise a Grok turn through

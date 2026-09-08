@@ -90,11 +90,20 @@ Decided from the TASK-004 capture: live `grok agent stdio` is the v1 worker
 
 ## EPIC-003: Async worker and MCP
 
-Status: `In Progress`
+Status: `Completed`
 
 Depends on: EPIC-002 = go
 
-Detailed SOT: [TODO-EPIC-003.md](../todo/TODO-EPIC-003.md)
+Canonical Outcomes: default spawn `never` + `workspace-write`
+([product.md](../specs/product.md),
+[mcp-async-host-contract.md](../specs/mcp-async-host-contract.md));
+CLI vs MCP lifetimes and six tools
+([mcp-async-host-contract.md](../specs/mcp-async-host-contract.md));
+launch fail-closed and cwd-confined ACP fs
+([grok-launch.md](../specs/grok-launch.md));
+ACP mapping ([acp-item-mapping.md](../specs/acp-item-mapping.md));
+live file-edit evidence ([TESTING.md](../../TESTING.md),
+[host-exercise.md](../ops/host-exercise.md)).
 
 The v1 product Claude/Codex attach. Domain ops are shared; **CLI and MCP
 process lifetimes differ** (see [MCP async host contract](../specs/mcp-async-host-contract.md)).
