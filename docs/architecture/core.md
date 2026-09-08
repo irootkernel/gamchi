@@ -78,7 +78,10 @@ The core crate is Rust (`crates/core`, package `samchi-core`). The Grok ACP
 adapter crate is `crates/adapter-grok` (package `samchi-adapter-grok`).
 TASK-003's fake ACP agent and stdio harness live there; they do not import
 Grok SDKs. The TASK-004 live `grok agent stdio` capture is
-`crates/adapter-grok/captures/task-004` and is parsed offline.
+`crates/adapter-grok/captures/task-004` and is parsed offline. TASK-007
+spawns parent-owned `grok --sandbox workspace agent --no-leader
+--always-approve stdio` and maps `session/update` onto `source_wire` items.
+CLI and MCP verbs stay unpublished until TASK-008/009.
 
 ## v1 scope
 

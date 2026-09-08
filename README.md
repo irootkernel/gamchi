@@ -33,12 +33,13 @@ Dolgorae.
 
 ## Status
 
-See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-007
-(ACP adapter: spawn grok agent, update → item). ACP go is
+See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-008
+(CLI worker start, wait, status, result, list). ACP go is
 [ADR-0002](docs/architecture-decision-records/0002-grok-agent-stdio.md).
 The TASK-004 live `grok agent stdio` capture is
 [crates/adapter-grok/captures/task-004](crates/adapter-grok/captures/task-004).
-The TASK-006 disk ledger lives in `crates/core` (`samchi-core`).
+The TASK-006 disk ledger lives in `crates/core` (`samchi-core`). The TASK-007
+ACP adapter spawn and item mapper live in `crates/adapter-grok`.
 
 ## Build and test
 

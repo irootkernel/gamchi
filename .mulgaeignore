@@ -1,0 +1,3 @@
+# Agent instruction files trip Mulgae's filesystem content detector.
+AGENTS.md
+CLAUDE.md

@@ -12,9 +12,11 @@ runs `cargo fmt --check` (must not rewrite), clippy, docscheck, and
 The TASK-006 disk ledger (home resolution, admit/lock, atomic terminal
 publish, waiter wakeup, generation liveness, `client_request_id` dedup) is
 tested in `samchi-core`, including two-process lock and owner-death helpers.
-The adapter crate's fake ACP agent and stdio harness live in `crates/adapter-grok`.
-TASK-005's go ADR is checked against that capture parser; `make test` still
-does not spawn live Grok.
+The adapter crate's fake ACP agent, stdio harness, launch planner, and
+`session/update` mapper live in `crates/adapter-grok`. TASK-007's live
+`grok agent stdio` file-edit turn is an ignored test (`live_edit`); `make test`
+still does not spawn live Grok. TASK-005's go ADR is checked against that
+capture parser.
 
 ## Canonical commands
 
@@ -38,4 +40,6 @@ test binary and dummy `sleep` children only.
 | unit | `cargo test --workspace` |
 
 `make test` does not spawn live Grok. TASK-004's checked-in `grok agent stdio`
-capture is parsed offline in `crates/adapter-grok`.
+capture is parsed offline in `crates/adapter-grok`. TASK-007 launch fail-closed
+and mapping tests run in `samchi-adapter-grok`; the live file-edit is
+`cargo test -p samchi-adapter-grok --test live_edit -- --ignored`.
