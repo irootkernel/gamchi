@@ -11,6 +11,7 @@ Language: English.
 | Protocol artifacts | [protocol/](protocol/) | Pinned Dolgorae Codex 0.149.0 consumer subset and samchi-for-grok wire identity |
 | Architecture | [architecture/](architecture/) | Core / facade / adapter split |
 | Architecture decisions | [architecture-decision-records/](architecture-decision-records/) | Accepted implementation decisions after roadmap settlement |
+| TODO | [todo/](todo/) | Temporary execution dossiers; not lifecycle status |
 
 The [roadmap](roadmap/README.md) owns delivery identity, order, dependencies,
 and lifecycle status. [Product](specs/product.md) is the in-repo requirements

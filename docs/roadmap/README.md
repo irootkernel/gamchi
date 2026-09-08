@@ -94,6 +94,8 @@ Status: `In Progress`
 
 Depends on: EPIC-002 = go
 
+Detailed SOT: [TODO-EPIC-003.md](../todo/TODO-EPIC-003.md)
+
 The v1 product Claude/Codex attach. Domain ops are shared; **CLI and MCP
 process lifetimes differ** (see [MCP async host contract](../specs/mcp-async-host-contract.md)).
 
