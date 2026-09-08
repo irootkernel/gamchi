@@ -122,6 +122,8 @@ Status: `Planned`
 
 Depends on: EPIC-003
 
+Detailed SOT: [TODO-EPIC-004.md](../todo/TODO-EPIC-004.md)
+
 Make the worker supervisable. No app-server socket yet. MCP already has a
 long-lived server process; that is not a Dolgorae unix socket.
 
