@@ -44,6 +44,8 @@ fn fake_agent_turn_publishes_items() {
         .any(|item| item.item_type == ITEM_FILE_CHANGE && item.status == "completed"));
     let stored = ledger.read_turn(&outcome.turn.id).expect("stored");
     assert_eq!(stored.status, TurnStatus::Completed);
+    let thread = ledger.read_thread(&outcome.turn.thread_id).expect("thread");
+    assert_eq!(thread.acp_session_id, samchi_adapter_grok::STUB_SESSION_ID);
 }
 
 #[test]

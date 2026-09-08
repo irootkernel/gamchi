@@ -49,7 +49,8 @@ make build
 ./bin/samchi-for-grok version
 ```
 
-`samchi-for-grok worker start|wait|status|result|list --json` and
-`samchi-for-grok mcp` (six tools) are implemented. Host packaging lives in
+`samchi-for-grok worker start|wait|status|result|list|cancel --json` and
+`samchi-for-grok mcp` (spawn, await, wait, status, result, list, cancel) are
+implemented. Host packaging lives in
 [skills/use-samchi-for-grok](skills/use-samchi-for-grok/SKILL.md) and
 [docs/ops](docs/ops/). `app-server` is not implemented yet.

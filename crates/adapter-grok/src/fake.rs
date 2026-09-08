@@ -37,6 +37,10 @@ pub async fn run_fake_agent(transport: impl ConnectTo<Agent>) -> Result<()> {
         )
         .on_receive_request(
             async move |req: PromptRequest, responder, connection| {
+                if let Ok(secs) = std::env::var("SAMCHI_FOR_GROK_FAKE_HANG_SECS") {
+                    let secs: u64 = secs.parse().unwrap_or(60);
+                    tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
+                }
                 emit_stub_updates(&connection, &req.session_id)?;
                 responder.respond(PromptResponse::new(StopReason::EndTurn))
             },

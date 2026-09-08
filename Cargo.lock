@@ -1002,6 +1002,7 @@ dependencies = [
  "agent-client-protocol",
  "async-process",
  "futures",
+ "libc",
  "samchi-core",
  "serde_json",
  "tempfile",

@@ -86,7 +86,9 @@ TASK-008 publishes CLI worker start/wait/status/result/list. TASK-009
 publishes MCP stdio six tools (`grok_spawn` returns immediately; the MCP
 process owns the child). TASK-010 ships `use-samchi-for-grok` and Codex/Claude
 snippets (`tool_timeout_sec = 3600`); copy them only when the user asks.
-`app-server` stays unpublished until EPIC-005.
+TASK-011 publishes MCP `grok_cancel` and CLI `worker cancel`: process-group
+teardown of the `grok agent stdio` child, TurnStatus `interrupted`. Host
+timeout of await is not cancel. `app-server` stays unpublished until EPIC-005.
 
 ## v1 scope
 

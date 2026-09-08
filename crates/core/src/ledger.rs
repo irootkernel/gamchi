@@ -334,6 +334,33 @@ impl Ledger {
         self.publish_terminal_locked(&turn, TurnStatus::Failed, "", FAILURE_WORKER_GONE)
     }
 
+    /// Persist the ACP session id after `session/new` (TASK-011/012).
+    pub fn set_acp_session_id(
+        &self,
+        thread_id: &str,
+        acp_session_id: &str,
+    ) -> Result<Thread, LedgerError> {
+        validate_id(thread_id)?;
+        let _lock = lock_exclusive(&self.thread_lock_path(thread_id))?;
+        let mut thread = self.read_thread(thread_id)?;
+        thread.acp_session_id = acp_session_id.to_string();
+        write_json_atomic(&self.thread_path(&thread.id), &thread)?;
+        Ok(thread)
+    }
+
+    /// Publish `interrupted` if the turn is still in progress. An already
+    /// terminal record is returned unchanged (idempotent; first terminal wins).
+    pub fn cancel(&self, turn_id: &str) -> Result<Turn, LedgerError> {
+        validate_id(turn_id)?;
+        let turn = self.read_turn(turn_id)?;
+        let _lock = lock_exclusive(&self.thread_lock_path(&turn.thread_id))?;
+        let turn = self.read_turn(turn_id)?;
+        if turn.status.is_terminal() {
+            return Ok(turn);
+        }
+        self.publish_terminal_locked(&turn, TurnStatus::Interrupted, "cancelled", "")
+    }
+
     pub fn publish_terminal(
         &self,
         turn_id: &str,
@@ -1096,6 +1123,55 @@ mod tests {
         assert_eq!(got.status, TurnStatus::Completed);
         assert_eq!(got.failure_reason, "");
         assert_eq!(got.stop_reason, "end_turn");
+    }
+
+    #[test]
+    fn cancel_publishes_interrupted_and_is_idempotent() {
+        let (_dir, ledger) = open_tmp();
+        let thread = ledger.create_thread(&sample_thread("/work")).unwrap();
+        let turn = ledger.admit_turn(&sample_turn(&thread.id, None)).unwrap();
+        let first = ledger.cancel(&turn.id).unwrap();
+        assert_eq!(first.status, TurnStatus::Interrupted);
+        assert_eq!(first.stop_reason, "cancelled");
+        let second = ledger.cancel(&turn.id).unwrap();
+        assert_eq!(second.status, TurnStatus::Interrupted);
+        assert_eq!(second.stop_reason, "cancelled");
+        assert_eq!(second.failure_reason, "");
+    }
+
+    #[test]
+    fn cancel_does_not_overwrite_worker_gone() {
+        let (_dir, ledger) = open_tmp();
+        let thread = ledger.create_thread(&sample_thread("/work")).unwrap();
+        let turn = ledger.admit_turn(&sample_turn(&thread.id, None)).unwrap();
+        let mut child = std::process::Command::new("sleep")
+            .arg("60")
+            .spawn()
+            .unwrap();
+        ledger
+            .set_child_pid(&turn.generation_id, child.id())
+            .unwrap();
+        child.kill().unwrap();
+        child.wait().unwrap();
+        let gone = ledger.observe(&turn.id).unwrap();
+        assert_eq!(gone.status, TurnStatus::Failed);
+        assert_eq!(gone.failure_reason, FAILURE_WORKER_GONE);
+        let after = ledger.cancel(&turn.id).unwrap();
+        assert_eq!(after.status, TurnStatus::Failed);
+        assert_eq!(after.failure_reason, FAILURE_WORKER_GONE);
+    }
+
+    #[test]
+    fn set_acp_session_id_persists() {
+        let (_dir, ledger) = open_tmp();
+        let thread = ledger.create_thread(&sample_thread("/work")).unwrap();
+        assert!(thread.acp_session_id.is_empty());
+        let stored = ledger.set_acp_session_id(&thread.id, "sess-live").unwrap();
+        assert_eq!(stored.acp_session_id, "sess-live");
+        assert_eq!(
+            ledger.read_thread(&thread.id).unwrap().acp_session_id,
+            "sess-live"
+        );
     }
 
     #[test]

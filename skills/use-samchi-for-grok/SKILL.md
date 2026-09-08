@@ -17,8 +17,9 @@ Do not pass `writableRoots`, `networkAccess`, `excludeSlashTmp`, or
 
 Completion is a terminal TurnStatus (`completed`, `interrupted`, `failed`)
 returned by `grok_await`. MCP push is not the completion signal.
-`grok_cancel` is not published yet. Do not treat host cancel of the await
-tool, an observer timeout, or `grok_wait` timeout as cancel.
+`grok_cancel` is published: it tears down the Grok process group and the
+turn becomes `interrupted`. Do not treat host cancel of the await tool, an
+observer timeout, or `grok_wait` timeout as cancel.
 
 ## Lifecycle
 

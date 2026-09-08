@@ -1,4 +1,4 @@
-//! MCP stdio six tools against the fake ACP agent. Does not spawn live Grok.
+//! MCP stdio tools against the fake ACP agent. Does not spawn live Grok.
 
 use samchi_core::ledger::{Ledger, NewThread, NewTurn};
 use samchi_core::source_wire::{ApprovalPolicy, ThreadSandbox, UserInput};
@@ -26,14 +26,24 @@ struct Rpc {
 
 impl Rpc {
     fn start(home: &str) -> Self {
-        let mut child = Command::new(bin())
-            .args(["mcp", "--home", home])
+        Self::start_with(home, None)
+    }
+
+    fn start_hang(home: &str) -> Self {
+        Self::start_with(home, Some("60"))
+    }
+
+    fn start_with(home: &str, hang_secs: Option<&str>) -> Self {
+        let mut cmd = Command::new(bin());
+        cmd.args(["mcp", "--home", home])
             .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("mcp");
+            .stderr(Stdio::piped());
+        if let Some(secs) = hang_secs {
+            cmd.env("SAMCHI_FOR_GROK_FAKE_HANG_SECS", secs);
+        }
+        let mut child = cmd.spawn().expect("mcp");
         let stdin = child.stdin.take().expect("stdin");
         let stdout = BufReader::new(child.stdout.take().expect("stdout"));
         Self {
@@ -69,7 +79,7 @@ impl Drop for Rpc {
 }
 
 #[test]
-fn tools_list_is_six_and_spawn_await() {
+fn tools_list_includes_cancel_and_spawn_await() {
     let home = tempfile::tempdir().expect("home");
     let cwd = tempfile::tempdir().expect("cwd");
     let mut rpc = Rpc::start(home.path().to_str().unwrap());
@@ -93,7 +103,8 @@ fn tools_list_is_six_and_spawn_await() {
             "grok_wait",
             "grok_status",
             "grok_result",
-            "grok_list"
+            "grok_list",
+            "grok_cancel"
         ]
     );
     let spawn = rpc.tool(
@@ -182,4 +193,31 @@ fn wait_timeout_does_not_cancel() {
     assert_eq!(result["ready"], false);
     let still = ledger.observe(&turn.id).unwrap();
     assert!(!still.status.is_terminal());
+}
+
+#[test]
+fn grok_cancel_interrupts_hanging_fake_agent() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut rpc = Rpc::start_hang(home.path().to_str().unwrap());
+    let _ = rpc.call(
+        "initialize",
+        json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
+    );
+    let spawn = rpc.tool(
+        "grok_spawn",
+        json!({"prompt":"hang","cwd": cwd.path().to_str().unwrap()}),
+    );
+    let turn_id = spawn["turn_id"].as_str().unwrap().to_string();
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let cancelled = rpc.tool("grok_cancel", json!({"turn_id": turn_id}));
+    assert_eq!(
+        cancelled["status"], "interrupted",
+        "cancel {cancelled} failure_reason={}",
+        cancelled["failure_reason"]
+    );
+    let again = rpc.tool("grok_cancel", json!({"turn_id": turn_id}));
+    assert_eq!(again["status"], "interrupted");
+    let done = rpc.tool("grok_await", json!({"turn_id": turn_id}));
+    assert_eq!(done["status"], "interrupted");
 }

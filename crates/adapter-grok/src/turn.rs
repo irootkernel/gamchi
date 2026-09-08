@@ -159,6 +159,14 @@ async fn run_turn_async(
     on_admit(&turn);
     let generation_id = turn.generation_id.clone();
     let turn_id = turn.id.clone();
+    let thread_id = turn.thread_id.clone();
+    if ledger.read_turn(&turn_id)?.status.is_terminal() {
+        return Ok(TurnOutcome {
+            turn: ledger.read_turn(&turn_id)?,
+            files_changed: Vec::new(),
+            files_changed_complete: false,
+        });
+    }
 
     let mapper = Mapper::new(&req.prompt);
     for item in mapper.items() {
@@ -255,9 +263,18 @@ async fn run_turn_async(
             let shared = shared.clone();
             let ledger = ledger.clone();
             let turn_id = turn_id.clone();
+            let thread_id = thread_id.clone();
             async move |connection: ConnectionTo<Agent>| {
-                let stop =
-                    drive_prompt(&connection, &cwd, &prompt, &shared, &ledger, &turn_id).await?;
+                let stop = drive_prompt(
+                    &connection,
+                    &cwd,
+                    &prompt,
+                    &shared,
+                    &ledger,
+                    &turn_id,
+                    &thread_id,
+                )
+                .await?;
                 // Concurrent wait/observe treats a dead child as worker_gone.
                 // Publish while the ACP connection (and child) is still open.
                 let _ = publish_stop(&ledger, &shared, &turn_id, stop);
@@ -293,6 +310,7 @@ async fn drive_prompt(
     shared: &Arc<Mutex<Shared>>,
     ledger: &Ledger,
     turn_id: &str,
+    thread_id: &str,
 ) -> agent_client_protocol::Result<StopReason> {
     let caps = ClientCapabilities::new().fs(FileSystemCapabilities::new()
         .read_text_file(true)
@@ -305,6 +323,7 @@ async fn drive_prompt(
         .send_request(NewSessionRequest::new(cwd.to_path_buf()))
         .block_task()
         .await?;
+    let _ = ledger.set_acp_session_id(thread_id, &session.session_id.to_string());
     let prompt_result = connection
         .send_request(PromptRequest::new(
             session.session_id,

@@ -12,6 +12,7 @@ path = "src/bin/fake-acp-agent.rs"
 agent-client-protocol = "2.1.0"
 async-process = "2"
 futures = "0.3"
+libc = "0.2"
 samchi-core = { path = "../core" }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

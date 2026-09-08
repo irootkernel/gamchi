@@ -1,6 +1,6 @@
 //! Shared ledger/JSON helpers for CLI and MCP facades.
 
-use samchi_adapter_grok::AgentCommand;
+use samchi_adapter_grok::{teardown_process_group, AgentCommand};
 use samchi_core::home::resolve_home_from_os;
 use samchi_core::ledger::Ledger;
 use samchi_core::source_wire::Turn;
@@ -29,6 +29,17 @@ pub fn open_home(explicit: Option<&Path>) -> Result<PathBuf, String> {
 pub fn open_ledger(explicit: Option<&Path>) -> Result<Ledger, String> {
     let home = open_home(explicit)?;
     Ledger::open(home).map_err(|e| e.to_string())
+}
+
+/// Publish `interrupted` then tear down the Grok child process group.
+pub fn cancel_turn(ledger: &Ledger, turn_id: &str) -> Result<Turn, String> {
+    let turn = ledger.cancel(turn_id).map_err(|e| e.to_string())?;
+    if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
+        if let Some(pid) = generation.child_pid {
+            teardown_process_group(pid);
+        }
+    }
+    ledger.read_turn(turn_id).map_err(|e| e.to_string())
 }
 
 pub fn turn_json(turn: &Turn) -> Value {

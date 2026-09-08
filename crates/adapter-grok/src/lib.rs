@@ -9,9 +9,11 @@ mod fake;
 mod launch;
 pub mod live_capture;
 mod map;
+mod teardown;
 mod turn;
 
 pub use fake::{run_fake_agent, STUB_REPLY, STUB_SESSION_ID, STUB_TOOL_CALL_ID};
 pub use launch::{plan_launch, ExtraSpawnFields, LaunchError, LaunchPlan, LaunchRequest};
 pub use map::{emit_item_type, ExcludedFatal, Mapper};
+pub use teardown::teardown_process_group;
 pub use turn::{run_turn, run_turn_on_admit, AdapterError, AgentCommand, TurnOutcome, TurnRequest};

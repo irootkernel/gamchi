@@ -116,6 +116,72 @@ fn wait_timeout_does_not_cancel() {
 }
 
 #[test]
+fn cancel_interrupts_hanging_start() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut child = Command::new(bin())
+        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .env("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")
+        .args([
+            "worker",
+            "start",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--cwd",
+            cwd.path().to_str().unwrap(),
+            "hang",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("start");
+    let mut stdout = child.stdout.take().expect("stdout");
+    let mut line = String::new();
+    let mut reader = std::io::BufReader::new(&mut stdout);
+    use std::io::BufRead;
+    reader.read_line(&mut line).expect("ids");
+    let v: Value = serde_json::from_str(line.trim()).expect("json");
+    let turn_id = v["turn_id"].as_str().expect("turn_id");
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let cancel = Command::new(bin())
+        .args([
+            "worker",
+            "cancel",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--turn-id",
+            turn_id,
+        ])
+        .output()
+        .expect("cancel");
+    assert!(
+        cancel.status.success(),
+        "stderr {}",
+        String::from_utf8_lossy(&cancel.stderr)
+    );
+    let snap: Value = serde_json::from_str(&String::from_utf8_lossy(&cancel.stdout)).unwrap();
+    assert_eq!(snap["status"], "interrupted");
+    let again = Command::new(bin())
+        .args([
+            "worker",
+            "cancel",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--turn-id",
+            turn_id,
+        ])
+        .output()
+        .expect("cancel again");
+    assert!(again.status.success());
+    let snap2: Value = serde_json::from_str(&String::from_utf8_lossy(&again.stdout)).unwrap();
+    assert_eq!(snap2["status"], "interrupted");
+    let _ = child.wait();
+}
+
+#[test]
 fn list_and_result_json() {
     let home = tempfile::tempdir().expect("home");
     let list = Command::new(bin())

@@ -49,4 +49,7 @@ TASK-010 host packaging is checked offline in `samchi-for-grok` (`host_packaging
 The live MCP/Claude/Codex spawn→await file-edit is
 `cargo test -p samchi-for-grok --test live_host -- --ignored`.
 That live turn uses an isolated disposable workspace and does not edit user
-host config.
+host config. TASK-011 live cancel is
+`cargo test -p samchi-for-grok --test live_cancel -- --ignored`.
+An in-flight prompt dies and the turn is `interrupted`. Host observer timeout
+of await is not cancel.

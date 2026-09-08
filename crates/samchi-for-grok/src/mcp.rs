@@ -1,6 +1,8 @@
-//! MCP stdio facade. TASK-009 publishes six tools; spawn returns immediately.
+//! MCP stdio facade. TASK-011 publishes grok_cancel; spawn still returns immediately.
 
-use crate::ops::{acp_command, bounded_turn_json, open_home, open_ledger, turn_json, MAX_WAIT_MS};
+use crate::ops::{
+    acp_command, bounded_turn_json, cancel_turn, open_home, open_ledger, turn_json, MAX_WAIT_MS,
+};
 use samchi_adapter_grok::{run_turn_on_admit, ExtraSpawnFields, TurnRequest};
 use samchi_core::source_wire::{
     parse_approval_policy, parse_thread_sandbox, ApprovalPolicy, ThreadSandbox,
@@ -102,6 +104,11 @@ fn tools_list() -> Value {
             tool("grok_status", "One snapshot of a turn.", id_schema()),
             tool("grok_result", "Terminal envelope, or ready=false.", id_schema()),
             tool("grok_list", "Recent turns from the disk ledger.", list_schema()),
+            tool(
+                "grok_cancel",
+                "Tear down the Grok process group. TurnStatus interrupted. Host timeout is not cancel.",
+                id_schema(),
+            ),
         ]
     })
 }
@@ -165,6 +172,7 @@ fn call_tool(params: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
         "grok_status" => status_turn(&args, cli_home, false),
         "grok_result" => status_turn(&args, cli_home, true),
         "grok_list" => list_turns(&args, cli_home),
+        "grok_cancel" => cancel_tool(&args, cli_home),
         other => Err(format!("unknown tool {other}")),
     }
 }
@@ -277,6 +285,13 @@ fn list_turns(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
     let cwd = args.get("cwd").and_then(Value::as_str);
     let turns = ledger.list_turns(cwd).map_err(|e| e.to_string())?;
     Ok(json!({"turns": turns.iter().map(turn_json).collect::<Vec<_>>()}))
+}
+
+fn cancel_tool(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
+    let turn_id = turn_id(args)?;
+    let ledger = ledger_from(args, cli_home)?;
+    let turn = cancel_turn(&ledger, &turn_id)?;
+    Ok(bounded_turn_json(&turn, Some(ledger.home())))
 }
 
 fn turn_id(args: &Value) -> Result<String, String> {

@@ -1,5 +1,6 @@
-//! CLI worker facade. TASK-008 publishes start/wait/status/result/list only.
+//! CLI worker facade. TASK-011 publishes cancel with start/wait/status/result/list.
 
+use crate::ops::cancel_turn;
 use samchi_adapter_grok::{run_turn_on_admit, AgentCommand, ExtraSpawnFields, TurnRequest};
 use samchi_core::home::{resolve_home_from_os, HomeError};
 use samchi_core::ledger::{Ledger, LedgerError};
@@ -17,6 +18,7 @@ Usage:
   samchi-for-grok worker status --json --turn-id <id> [--home <absolute-path>]
   samchi-for-grok worker result --json --turn-id <id> [--home <absolute-path>]
   samchi-for-grok worker list --json [--home <absolute-path>] [--cwd <absolute-path>]
+  samchi-for-grok worker cancel --json --turn-id <id> [--home <absolute-path>]
 ";
 
 const MAX_WAIT_MS: u64 = 50_000;
@@ -34,7 +36,8 @@ pub fn run_worker(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write)
         "status" => cmd_status(&args[1..], stdout, stderr),
         "result" => cmd_result(&args[1..], stdout, stderr),
         "list" => cmd_list(&args[1..], stdout, stderr),
-        "cancel" | "followup" | "respond" | "await" => {
+        "cancel" => cmd_cancel(&args[1..], stdout, stderr),
+        "followup" | "respond" | "await" => {
             write_err(stderr, "INVALID_CONFIG");
             write_all(stderr, WORKER_USAGE);
             1
@@ -189,6 +192,37 @@ fn snapshot(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write, resul
             0
         }
         Err(err) => ledger_err(stderr, err),
+    }
+}
+
+fn cmd_cancel(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
+    let parsed = match parse_flags(args, false) {
+        Ok(p) => p,
+        Err(_) => {
+            write_err(stderr, "INVALID_CONFIG");
+            write_all(stderr, WORKER_USAGE);
+            return 1;
+        }
+    };
+    if !parsed.json || parsed.turn_id.is_empty() {
+        write_err(stderr, "INVALID_CONFIG");
+        write_all(stderr, WORKER_USAGE);
+        return 1;
+    }
+    let ledger = match open_ledger(parsed.home.as_deref(), stderr) {
+        Ok(l) => l,
+        Err(code) => return code,
+    };
+    match cancel_turn(&ledger, &parsed.turn_id) {
+        Ok(turn) => {
+            write_json(stdout, &bounded_turn_json(&turn, Some(ledger.home())));
+            0
+        }
+        Err(err) => {
+            write_err(stderr, "ACP");
+            write_all(stderr, &format!("{err}\n"));
+            1
+        }
     }
 }
 

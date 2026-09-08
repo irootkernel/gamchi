@@ -358,10 +358,15 @@ mod tests {
         assert_eq!(task_status(&body, "008").as_deref(), Some("Completed"));
         assert_eq!(task_status(&body, "009").as_deref(), Some("Completed"));
         assert_eq!(task_status(&body, "010").as_deref(), Some("Completed"));
+        assert_eq!(task_status(&body, "011").as_deref(), Some("Completed"));
         assert_eq!(current_task(&body).as_deref(), Some("none"));
-        assert_eq!(next_eligible_task(&body).as_deref(), Some("TASK-011"));
+        assert_eq!(next_eligible_task(&body).as_deref(), Some("TASK-012"));
         assert_eq!(epic_status(&body, "EPIC-002").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-003").as_deref(), Some("Completed"));
+        assert_eq!(
+            epic_status(&body, "EPIC-004").as_deref(),
+            Some("In Progress")
+        );
         assert_eq!(phase_status(&body, 1).as_deref(), Some("Completed"));
         assert_eq!(phase_status(&body, 2).as_deref(), Some("In Progress"));
     }
