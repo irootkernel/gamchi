@@ -52,4 +52,6 @@ That live turn uses an isolated disposable workspace and does not edit user
 host config. TASK-011 live cancel is
 `cargo test -p samchi-for-grok --test live_cancel -- --ignored`.
 An in-flight prompt dies and the turn is `interrupted`. Host observer timeout
-of await is not cancel.
+of await is not cancel. TASK-012 live follow-up is
+`cargo test -p samchi-for-grok --test live_followup -- --ignored`.
+The second turn uses the same ACP session id.

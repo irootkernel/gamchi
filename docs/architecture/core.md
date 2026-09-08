@@ -88,7 +88,10 @@ process owns the child). TASK-010 ships `use-samchi-for-grok` and Codex/Claude
 snippets (`tool_timeout_sec = 3600`); copy them only when the user asks.
 TASK-011 publishes MCP `grok_cancel` and CLI `worker cancel`: process-group
 teardown of the `grok agent stdio` child, TurnStatus `interrupted`. Host
-timeout of await is not cancel. `app-server` stays unpublished until EPIC-005.
+timeout of await is not cancel. TASK-012 publishes MCP `grok_followup` and
+CLI `worker followup`: `session/load` of the stored ACP session id, then a
+new turn. Load replay is history. Missing `loadSession` fails closed.
+`app-server` stays unpublished until EPIC-005.
 
 ## v1 scope
 

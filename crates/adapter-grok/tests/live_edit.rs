@@ -37,6 +37,7 @@ fn live_turn_edits_named_file() {
                 program: Path::new("grok").to_path_buf(),
             },
             client_request_id: None,
+            follow_up_thread_id: None,
         },
     )
     .unwrap_or_else(|err| panic!("live turn failed: {err}"));

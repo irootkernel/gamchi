@@ -3,11 +3,11 @@
 use crate::launch::{plan_launch, ExtraSpawnFields, LaunchError, LaunchPlan, LaunchRequest};
 use crate::map::Mapper;
 use agent_client_protocol::schema::v1::{
-    ClientCapabilities, ContentBlock, FileSystemCapabilities, InitializeRequest, NewSessionRequest,
-    PermissionOptionKind, PromptRequest, ReadTextFileRequest, ReadTextFileResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SelectedPermissionOutcome, SessionNotification, StopReason, TextContent, WriteTextFileRequest,
-    WriteTextFileResponse,
+    ClientCapabilities, ContentBlock, FileSystemCapabilities, InitializeRequest,
+    LoadSessionRequest, NewSessionRequest, PermissionOptionKind, PromptRequest,
+    ReadTextFileRequest, ReadTextFileResponse, RequestPermissionOutcome, RequestPermissionRequest,
+    RequestPermissionResponse, SelectedPermissionOutcome, SessionId, SessionNotification,
+    StopReason, TextContent, WriteTextFileRequest, WriteTextFileResponse,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, ByteStreams, Client, ConnectionTo};
@@ -42,6 +42,8 @@ pub struct TurnRequest {
     pub model: String,
     pub command: AgentCommand,
     pub client_request_id: Option<String>,
+    /// When set, admit on this thread and `session/load` its stored ACP session.
+    pub follow_up_thread_id: Option<String>,
 }
 
 /// Terminal turn plus git `files_changed`.
@@ -97,7 +99,11 @@ struct Shared {
     mapper: Mapper,
     ledger: Arc<Ledger>,
     turn_id: String,
+    thread_id: String,
+    load_session_id: Option<String>,
     fatal: Option<String>,
+    /// `session/load` replay is history, not new-turn items or approvals.
+    history: bool,
 }
 
 /// Admit a ledger turn, spawn the ACP child, map updates, publish terminal.
@@ -138,14 +144,28 @@ async fn run_turn_async(
     };
 
     let start_head = git_head(&req.cwd);
-    let thread = ledger.create_thread(&NewThread {
-        cwd: req.cwd.display().to_string(),
-        model: req.model.clone(),
-        sandbox: req.sandbox,
-        approval_policy: req.approval,
-        developer_instructions: String::new(),
-        acp_session_id: String::new(),
-    })?;
+    let (thread, load_session_id) = if let Some(thread_id) = req.follow_up_thread_id.as_deref() {
+        let thread = ledger.read_thread(thread_id)?;
+        if thread.acp_session_id.is_empty() {
+            return Err(AdapterError::Acp(
+                "follow-up requires a stored ACP session id".to_string(),
+            ));
+        }
+        let sid = thread.acp_session_id.clone();
+        (thread, Some(sid))
+    } else {
+        (
+            ledger.create_thread(&NewThread {
+                cwd: req.cwd.display().to_string(),
+                model: req.model.clone(),
+                sandbox: req.sandbox,
+                approval_policy: req.approval,
+                developer_instructions: String::new(),
+                acp_session_id: String::new(),
+            })?,
+            None,
+        )
+    };
     let turn = ledger.admit_turn(&NewTurn {
         thread_id: thread.id.clone(),
         input: vec![UserInput {
@@ -176,7 +196,10 @@ async fn run_turn_async(
         mapper,
         ledger: ledger.clone(),
         turn_id: turn_id.clone(),
+        thread_id: thread_id.clone(),
+        load_session_id: load_session_id.clone(),
         fatal: None,
+        history: false,
     }));
 
     let mut std_cmd = std::process::Command::new(&plan.program);
@@ -263,18 +286,8 @@ async fn run_turn_async(
             let shared = shared.clone();
             let ledger = ledger.clone();
             let turn_id = turn_id.clone();
-            let thread_id = thread_id.clone();
             async move |connection: ConnectionTo<Agent>| {
-                let stop = drive_prompt(
-                    &connection,
-                    &cwd,
-                    &prompt,
-                    &shared,
-                    &ledger,
-                    &turn_id,
-                    &thread_id,
-                )
-                .await?;
+                let stop = drive_prompt(&connection, &cwd, &prompt, &shared).await?;
                 // Concurrent wait/observe treats a dead child as worker_gone.
                 // Publish while the ACP connection (and child) is still open.
                 let _ = publish_stop(&ledger, &shared, &turn_id, stop);
@@ -308,37 +321,82 @@ async fn drive_prompt(
     cwd: &Path,
     prompt: &str,
     shared: &Arc<Mutex<Shared>>,
-    ledger: &Ledger,
-    turn_id: &str,
-    thread_id: &str,
 ) -> agent_client_protocol::Result<StopReason> {
+    let (ledger, turn_id, thread_id, load_session_id) = {
+        let inner = shared.lock().expect("mapper");
+        (
+            inner.ledger.clone(),
+            inner.turn_id.clone(),
+            inner.thread_id.clone(),
+            inner.load_session_id.clone(),
+        )
+    };
     let caps = ClientCapabilities::new().fs(FileSystemCapabilities::new()
         .read_text_file(true)
         .write_text_file(true));
-    connection
+    let init = connection
         .send_request(InitializeRequest::new(ProtocolVersion::V1).client_capabilities(caps))
         .block_task()
         .await?;
-    let session = connection
-        .send_request(NewSessionRequest::new(cwd.to_path_buf()))
-        .block_task()
-        .await?;
-    let _ = ledger.set_acp_session_id(thread_id, &session.session_id.to_string());
+    let session_id = if let Some(sid) = load_session_id.as_deref() {
+        if !init.agent_capabilities.load_session {
+            let _ = ledger.publish_terminal(
+                &turn_id,
+                TurnStatus::Failed,
+                "",
+                "loadSession not advertised",
+            );
+            return Err(agent_client_protocol::Error::into_internal_error(
+                io::Error::other("loadSession not advertised"),
+            ));
+        }
+        {
+            let mut inner = shared.lock().expect("mapper");
+            inner.history = true;
+        }
+        let loaded = connection
+            .send_request(LoadSessionRequest::new(
+                SessionId::new(sid),
+                cwd.to_path_buf(),
+            ))
+            .block_task()
+            .await;
+        {
+            let mut inner = shared.lock().expect("mapper");
+            inner.history = false;
+        }
+        if let Err(err) = loaded {
+            let _ =
+                ledger.publish_terminal(&turn_id, TurnStatus::Failed, "", "session/load failed");
+            return Err(err);
+        }
+        SessionId::new(sid)
+    } else {
+        let session = connection
+            .send_request(NewSessionRequest::new(cwd.to_path_buf()))
+            .block_task()
+            .await?;
+        let _ = ledger.set_acp_session_id(&thread_id, &session.session_id.to_string());
+        session.session_id
+    };
     let prompt_result = connection
         .send_request(PromptRequest::new(
-            session.session_id,
+            session_id,
             vec![ContentBlock::Text(TextContent::new(prompt))],
         ))
         .block_task()
         .await?;
     if let Some(item) = shared.lock().expect("mapper").mapper.finish_agent_message() {
-        let _ = ledger.upsert_item(turn_id, item);
+        let _ = ledger.upsert_item(&turn_id, item);
     }
     Ok(prompt_result.stop_reason)
 }
 
 fn apply_update(shared: &Arc<Mutex<Shared>>, notification: &SessionNotification) {
     let mut inner = shared.lock().expect("mapper");
+    if inner.history {
+        return;
+    }
     match inner.mapper.apply(&notification.update) {
         Ok(items) => {
             for item in items {
@@ -355,6 +413,9 @@ fn permission_response(
     req: &RequestPermissionRequest,
     shared: &Arc<Mutex<Shared>>,
 ) -> RequestPermissionResponse {
+    if shared.lock().expect("mapper").history {
+        return RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled);
+    }
     let allow = req.options.iter().find(|o| {
         matches!(
             o.kind,

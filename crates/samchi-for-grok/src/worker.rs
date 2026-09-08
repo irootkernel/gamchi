@@ -19,6 +19,7 @@ Usage:
   samchi-for-grok worker result --json --turn-id <id> [--home <absolute-path>]
   samchi-for-grok worker list --json [--home <absolute-path>] [--cwd <absolute-path>]
   samchi-for-grok worker cancel --json --turn-id <id> [--home <absolute-path>]
+  samchi-for-grok worker followup --json --thread-id <id> [--home <absolute-path>] [--cwd <absolute-path>] <prompt>
 ";
 
 const MAX_WAIT_MS: u64 = 50_000;
@@ -37,7 +38,8 @@ pub fn run_worker(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write)
         "result" => cmd_result(&args[1..], stdout, stderr),
         "list" => cmd_list(&args[1..], stdout, stderr),
         "cancel" => cmd_cancel(&args[1..], stdout, stderr),
-        "followup" | "respond" | "await" => {
+        "followup" => cmd_followup(&args[1..], stdout, stderr),
+        "respond" | "await" => {
             write_err(stderr, "INVALID_CONFIG");
             write_all(stderr, WORKER_USAGE);
             1
@@ -91,6 +93,7 @@ fn cmd_start(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u
         model: "grok".to_string(),
         command: acp_command(),
         client_request_id: None,
+        follow_up_thread_id: None,
     };
     let printed = std::sync::Mutex::new(false);
     let result = run_turn_on_admit(ledger, &req, |turn| {
@@ -195,6 +198,77 @@ fn snapshot(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write, resul
     }
 }
 
+fn cmd_followup(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
+    let parsed = match parse_flags(args, true) {
+        Ok(p) => p,
+        Err(_) => {
+            write_err(stderr, "INVALID_CONFIG");
+            write_all(stderr, WORKER_USAGE);
+            return 1;
+        }
+    };
+    if !parsed.json || parsed.thread_id.is_empty() || parsed.prompt.is_empty() {
+        write_err(stderr, "INVALID_CONFIG");
+        write_all(stderr, WORKER_USAGE);
+        return 1;
+    }
+    let ledger = match open_ledger(parsed.home.as_deref(), stderr) {
+        Ok(l) => l,
+        Err(code) => return code,
+    };
+    let thread = match ledger.read_thread(&parsed.thread_id) {
+        Ok(t) => t,
+        Err(err) => return ledger_err(stderr, err),
+    };
+    if thread.acp_session_id.is_empty() {
+        write_err(stderr, "ACP");
+        write_all(stderr, "follow-up requires a stored ACP session id\n");
+        return 1;
+    }
+    let cwd = match parsed.cwd {
+        Some(p) => p,
+        None => PathBuf::from(&thread.cwd),
+    };
+    let req = TurnRequest {
+        cwd,
+        prompt: parsed.prompt,
+        approval: thread.approval_policy,
+        sandbox: thread.sandbox,
+        extra: ExtraSpawnFields::default(),
+        model: thread.model,
+        command: acp_command(),
+        client_request_id: None,
+        follow_up_thread_id: Some(thread.id),
+    };
+    let printed = std::sync::Mutex::new(false);
+    let result = run_turn_on_admit(Arc::new(ledger), &req, |turn| {
+        let ids = json!({"thread_id": turn.thread_id, "turn_id": turn.id});
+        let mut out = io::stdout();
+        write_json(&mut out, &ids);
+        let _ = out.flush();
+        *printed.lock().expect("print") = true;
+    });
+    match result {
+        Ok(outcome) => {
+            if !*printed.lock().expect("print") {
+                let ids = json!({
+                    "thread_id": outcome.turn.thread_id,
+                    "turn_id": outcome.turn.id
+                });
+                write_json(stdout, &ids);
+            }
+            0
+        }
+        Err(err) => {
+            write_all(
+                stderr,
+                &format!("SAMCHI_FOR_GROK_STARTUP_ERROR ACP {err}\n"),
+            );
+            1
+        }
+    }
+}
+
 fn cmd_cancel(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
     let parsed = match parse_flags(args, false) {
         Ok(p) => p,
@@ -260,6 +334,7 @@ struct Flags {
     home: Option<PathBuf>,
     cwd: Option<PathBuf>,
     turn_id: String,
+    thread_id: String,
     timeout_ms: Option<u64>,
     prompt: String,
 }
@@ -269,6 +344,7 @@ fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
     let mut home = None;
     let mut cwd = None;
     let mut turn_id = String::new();
+    let mut thread_id = String::new();
     let mut timeout_ms = None;
     let mut i = 0;
     let mut prompt_parts = Vec::new();
@@ -289,6 +365,10 @@ fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
                 i += 1;
                 turn_id = args.get(i).ok_or(1u8)?.to_string();
             }
+            "--thread-id" => {
+                i += 1;
+                thread_id = args.get(i).ok_or(1u8)?.to_string();
+            }
             "--timeout-ms" => {
                 i += 1;
                 timeout_ms = Some(args.get(i).ok_or(1u8)?.parse().map_err(|_| 1u8)?);
@@ -308,6 +388,7 @@ fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
         home,
         cwd,
         turn_id,
+        thread_id,
         timeout_ms,
         prompt: prompt_parts.join(" "),
     })

@@ -26,22 +26,22 @@ struct Rpc {
 
 impl Rpc {
     fn start(home: &str) -> Self {
-        Self::start_with(home, None)
+        Self::start_with(home, &[])
     }
 
     fn start_hang(home: &str) -> Self {
-        Self::start_with(home, Some("60"))
+        Self::start_with(home, &[("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")])
     }
 
-    fn start_with(home: &str, hang_secs: Option<&str>) -> Self {
+    fn start_with(home: &str, extra: &[(&str, &str)]) -> Self {
         let mut cmd = Command::new(bin());
         cmd.args(["mcp", "--home", home])
             .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        if let Some(secs) = hang_secs {
-            cmd.env("SAMCHI_FOR_GROK_FAKE_HANG_SECS", secs);
+        for (k, v) in extra {
+            cmd.env(k, v);
         }
         let mut child = cmd.spawn().expect("mcp");
         let stdin = child.stdin.take().expect("stdin");
@@ -104,7 +104,8 @@ fn tools_list_includes_cancel_and_spawn_await() {
             "grok_status",
             "grok_result",
             "grok_list",
-            "grok_cancel"
+            "grok_cancel",
+            "grok_followup"
         ]
     );
     let spawn = rpc.tool(
@@ -220,4 +221,72 @@ fn grok_cancel_interrupts_hanging_fake_agent() {
     assert_eq!(again["status"], "interrupted");
     let done = rpc.tool("grok_await", json!({"turn_id": turn_id}));
     assert_eq!(done["status"], "interrupted");
+}
+
+#[test]
+fn grok_followup_second_turn_same_session() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut rpc = Rpc::start(home.path().to_str().unwrap());
+    let _ = rpc.call(
+        "initialize",
+        json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
+    );
+    let spawn = rpc.tool(
+        "grok_spawn",
+        json!({"prompt":"one","cwd": cwd.path().to_str().unwrap()}),
+    );
+    let thread_id = spawn["thread_id"].as_str().unwrap().to_string();
+    let first = spawn["turn_id"].as_str().unwrap().to_string();
+    let done = rpc.tool("grok_await", json!({"turn_id": first}));
+    assert_eq!(done["status"], "completed");
+    let follow = rpc.tool(
+        "grok_followup",
+        json!({"thread_id": thread_id, "prompt": "two"}),
+    );
+    assert_eq!(follow["thread_id"], thread_id);
+    let second = follow["turn_id"].as_str().unwrap();
+    assert_ne!(second, first);
+    let done2 = rpc.tool("grok_await", json!({"turn_id": second}));
+    assert_eq!(
+        done2["status"], "completed",
+        "follow-up {done2} failure_reason={}",
+        done2["failure_reason"]
+    );
+}
+
+#[test]
+fn grok_followup_fails_closed_without_load_session() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut rpc = Rpc::start_with(
+        home.path().to_str().unwrap(),
+        &[("SAMCHI_FOR_GROK_FAKE_NO_LOAD", "1")],
+    );
+    let _ = rpc.call(
+        "initialize",
+        json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
+    );
+    let spawn = rpc.tool(
+        "grok_spawn",
+        json!({"prompt":"one","cwd": cwd.path().to_str().unwrap()}),
+    );
+    let thread_id = spawn["thread_id"].as_str().unwrap().to_string();
+    let first = spawn["turn_id"].as_str().unwrap().to_string();
+    assert_eq!(
+        rpc.tool("grok_await", json!({"turn_id": first}))["status"],
+        "completed"
+    );
+    let follow = rpc.tool(
+        "grok_followup",
+        json!({"thread_id": thread_id, "prompt": "two"}),
+    );
+    let second = follow["turn_id"].as_str().expect("admitted follow-up");
+    let done = rpc.tool("grok_await", json!({"turn_id": second}));
+    assert_eq!(done["status"], "failed", "follow-up {done}");
+    let reason = done["failure_reason"].as_str().unwrap_or("");
+    assert!(
+        reason.contains("loadSession"),
+        "expected loadSession fail-closed, got {done}"
+    );
 }

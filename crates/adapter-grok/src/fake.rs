@@ -2,9 +2,9 @@
 
 use agent_client_protocol::schema::v1::{
     AgentCapabilities, ContentBlock, ContentChunk, InitializeRequest, InitializeResponse,
-    NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse, SessionId,
-    SessionNotification, SessionUpdate, StopReason, TextContent, ToolCall, ToolCallStatus,
-    ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    LoadSessionRequest, LoadSessionResponse, NewSessionRequest, NewSessionResponse, PromptRequest,
+    PromptResponse, SessionId, SessionNotification, SessionUpdate, StopReason, TextContent,
+    ToolCall, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
 use agent_client_protocol::{Agent, ConnectTo, Result};
 
@@ -22,9 +22,10 @@ pub async fn run_fake_agent(transport: impl ConnectTo<Agent>) -> Result<()> {
         .name("samchi-for-grok-fake-acp-agent")
         .on_receive_request(
             async move |initialize: InitializeRequest, responder, _connection| {
+                let load = std::env::var_os("SAMCHI_FOR_GROK_FAKE_NO_LOAD").is_none();
                 responder.respond(
                     InitializeResponse::new(initialize.protocol_version)
-                        .agent_capabilities(AgentCapabilities::new()),
+                        .agent_capabilities(AgentCapabilities::new().load_session(load)),
                 )
             },
             agent_client_protocol::on_receive_request!(),
@@ -32,6 +33,18 @@ pub async fn run_fake_agent(transport: impl ConnectTo<Agent>) -> Result<()> {
         .on_receive_request(
             async move |_req: NewSessionRequest, responder, _connection| {
                 responder.respond(NewSessionResponse::new(SessionId::new(STUB_SESSION_ID)))
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |req: LoadSessionRequest, responder, connection| {
+                if std::env::var_os("SAMCHI_FOR_GROK_FAKE_LOAD_ERROR").is_some() {
+                    return Err(agent_client_protocol::Error::into_internal_error(
+                        std::io::Error::other("session/load failed"),
+                    ));
+                }
+                emit_stub_updates(&connection, &req.session_id)?;
+                responder.respond(LoadSessionResponse::new())
             },
             agent_client_protocol::on_receive_request!(),
         )

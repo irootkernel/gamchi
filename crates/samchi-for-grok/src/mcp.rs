@@ -1,4 +1,4 @@
-//! MCP stdio facade. TASK-011 publishes grok_cancel; spawn still returns immediately.
+//! MCP stdio facade. TASK-012 publishes grok_followup; spawn still returns immediately.
 
 use crate::ops::{
     acp_command, bounded_turn_json, cancel_turn, open_home, open_ledger, turn_json, MAX_WAIT_MS,
@@ -109,6 +109,11 @@ fn tools_list() -> Value {
                 "Tear down the Grok process group. TurnStatus interrupted. Host timeout is not cancel.",
                 id_schema(),
             ),
+            tool(
+                "grok_followup",
+                "New turn on the same ACP session via session/load.",
+                followup_schema(),
+            ),
         ]
     })
 }
@@ -159,6 +164,18 @@ fn list_schema() -> Value {
     })
 }
 
+fn followup_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "thread_id": {"type": "string"},
+            "prompt": {"type": "string"},
+            "home": {"type": "string"}
+        },
+        "required": ["thread_id", "prompt"]
+    })
+}
+
 fn call_tool(params: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
     let name = params
         .get("name")
@@ -173,6 +190,7 @@ fn call_tool(params: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
         "grok_result" => status_turn(&args, cli_home, true),
         "grok_list" => list_turns(&args, cli_home),
         "grok_cancel" => cancel_tool(&args, cli_home),
+        "grok_followup" => followup(&args, cli_home),
         other => Err(format!("unknown tool {other}")),
     }
 }
@@ -231,6 +249,7 @@ fn spawn(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
         model: "grok".to_string(),
         command: acp_command(),
         client_request_id,
+        follow_up_thread_id: None,
     };
     let (tx, rx) = mpsc::sync_channel(1);
     let ledger_bg = ledger.clone();
@@ -292,6 +311,53 @@ fn cancel_tool(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
     let ledger = ledger_from(args, cli_home)?;
     let turn = cancel_turn(&ledger, &turn_id)?;
     Ok(bounded_turn_json(&turn, Some(ledger.home())))
+}
+
+fn followup(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
+    let thread_id = args
+        .get("thread_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "thread_id required".to_string())?
+        .to_string();
+    let prompt = args
+        .get("prompt")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "prompt required".to_string())?
+        .to_string();
+    let home_arg = args
+        .get("home")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| cli_home.map(Path::to_path_buf));
+    let home = open_home(home_arg.as_deref())?;
+    let ledger = Arc::new(open_ledger(Some(home.as_path()))?);
+    let thread = ledger.read_thread(&thread_id).map_err(|e| e.to_string())?;
+    if thread.acp_session_id.is_empty() {
+        return Err("follow-up requires a stored ACP session id".to_string());
+    }
+    let cwd = PathBuf::from(&thread.cwd);
+    let req = TurnRequest {
+        cwd,
+        prompt,
+        approval: thread.approval_policy,
+        sandbox: thread.sandbox,
+        extra: ExtraSpawnFields::default(),
+        model: thread.model,
+        command: acp_command(),
+        client_request_id: None,
+        follow_up_thread_id: Some(thread_id),
+    };
+    let (tx, rx) = mpsc::sync_channel(1);
+    let ledger_bg = ledger.clone();
+    thread::spawn(move || {
+        let _ = run_turn_on_admit(ledger_bg, &req, |turn| {
+            let _ = tx.send((turn.thread_id.clone(), turn.id.clone()));
+        });
+    });
+    let (thread_id, turn_id) = rx
+        .recv_timeout(Duration::from_secs(30))
+        .map_err(|_| "follow-up did not admit a turn".to_string())?;
+    Ok(json!({"thread_id": thread_id, "turn_id": turn_id}))
 }
 
 fn turn_id(args: &Value) -> Result<String, String> {
