@@ -16,7 +16,7 @@ cargo test -p samchi-for-grok --test live_host -- --ignored --nocapture
 | Host | Available | spawn→await edit | How |
 | --- | --- | --- | --- |
 | JSON-RPC MCP client | yes | yes (`TASK010_LIVE.txt`) | `samchi-for-grok mcp --home <tmp>` |
-| Claude Code | yes (`claude`) | yes (`TASK010_CLAUDE.txt`, ledger terminal) | `--mcp-config` + `--strict-mcp-config`; no user `.mcp.json` edit |
+| Claude Code | yes (`claude`) | yes (`TASK010_CLAUDE.txt`, ledger terminal) | `--mcp-config` + `--strict-mcp-config` + `--dangerously-skip-permissions` in the disposable cwd; no user `.mcp.json` edit |
 | Codex | yes (`codex`) | yes (`TASK010_CODEX.txt`, ledger terminal) | `codex exec -c mcp_servers.samchi-for-grok.*`; no `~/.codex/config.toml` edit |
 
 The Codex harness uses `--dangerously-bypass-approvals-and-sandbox` only inside

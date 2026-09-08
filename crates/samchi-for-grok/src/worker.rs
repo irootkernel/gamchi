@@ -179,10 +179,13 @@ fn snapshot(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write, resul
     match ledger.observe(&parsed.turn_id) {
         Ok(turn) => {
             if result && !turn.status.is_terminal() {
-                write_json(stdout, &json!({"ready": false, "turn_id": turn.id}));
+                write_json(
+                    stdout,
+                    &json!({"ready": false, "not_ready": true, "turn_id": turn.id}),
+                );
                 return 0;
             }
-            write_json(stdout, &bounded_turn_json(&turn, parsed.home.as_deref()));
+            write_json(stdout, &bounded_turn_json(&turn, Some(ledger.home())));
             0
         }
         Err(err) => ledger_err(stderr, err),

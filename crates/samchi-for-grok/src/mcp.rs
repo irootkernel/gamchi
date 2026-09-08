@@ -267,7 +267,7 @@ fn status_turn(args: &Value, cli_home: Option<&Path>, result: bool) -> Result<Va
     let ledger = ledger_from(args, cli_home)?;
     let turn = ledger.observe(&turn_id).map_err(|e| e.to_string())?;
     if result && !turn.status.is_terminal() {
-        return Ok(json!({"ready": false, "turn_id": turn.id}));
+        return Ok(json!({"ready": false, "not_ready": true, "turn_id": turn.id}));
     }
     Ok(bounded_turn_json(&turn, Some(ledger.home())))
 }

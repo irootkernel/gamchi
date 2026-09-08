@@ -17,7 +17,7 @@ use samchi_core::source_wire::{
 };
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -231,9 +231,14 @@ async fn run_turn_async(
             agent_client_protocol::on_receive_request!(),
         )
         .on_receive_request(
-            async move |req: ReadTextFileRequest, responder, _cx| {
-                let body = read_text_file(&cwd_r, &req.path).unwrap_or_default();
-                responder.respond(ReadTextFileResponse::new(body))
+            async move |req: ReadTextFileRequest, responder, _cx| match read_text_file(
+                &cwd_r, &req.path,
+            ) {
+                Ok(body) => responder.respond(ReadTextFileResponse::new(body)),
+                Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+                    Err(agent_client_protocol::Error::into_internal_error(err))?
+                }
+                Err(_) => responder.respond(ReadTextFileResponse::new(String::new())),
             },
             agent_client_protocol::on_receive_request!(),
         )
@@ -349,12 +354,36 @@ fn permission_response(
     }
 }
 
-fn write_text_file(cwd: &Path, path: &Path, content: &str) -> io::Result<()> {
-    let abs = if path.is_absolute() {
+fn confined(cwd: &Path, path: &Path) -> io::Result<PathBuf> {
+    let root = cwd.canonicalize()?;
+    let joined = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        cwd.join(path)
+        root.join(path)
     };
+    let mut out = PathBuf::new();
+    for c in joined.components() {
+        match c {
+            Component::Prefix(p) => out.push(p.as_os_str()),
+            Component::RootDir => out.push(c),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                let _ = out.pop();
+            }
+            Component::Normal(s) => out.push(s),
+        }
+    }
+    if !out.starts_with(&root) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "path outside cwd",
+        ));
+    }
+    Ok(out)
+}
+
+fn write_text_file(cwd: &Path, path: &Path, content: &str) -> io::Result<()> {
+    let abs = confined(cwd, path)?;
     if let Some(parent) = abs.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -362,12 +391,7 @@ fn write_text_file(cwd: &Path, path: &Path, content: &str) -> io::Result<()> {
 }
 
 fn read_text_file(cwd: &Path, path: &Path) -> io::Result<String> {
-    let abs = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        cwd.join(path)
-    };
-    fs::read_to_string(abs)
+    fs::read_to_string(confined(cwd, path)?)
 }
 
 fn publish_stop(
@@ -465,5 +489,31 @@ fn git_files_changed(cwd: &Path, start_head: Option<&str>) -> (Vec<String>, bool
             (names, true)
         }
         _ => (Vec::new(), false),
+    }
+}
+
+#[cfg(test)]
+mod confined_tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn relative_and_in_cwd_absolute_ok() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("a.txt"), "ok").unwrap();
+        let got = confined(dir.path(), Path::new("a.txt")).unwrap();
+        assert_eq!(got, dir.path().canonicalize().unwrap().join("a.txt"));
+        let abs = dir.path().canonicalize().unwrap().join("b.txt");
+        let got = confined(dir.path(), &abs).unwrap();
+        assert_eq!(got, abs);
+    }
+
+    #[test]
+    fn parent_escape_and_foreign_absolute_denied() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = confined(dir.path(), Path::new("../secret")).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+        let err = confined(dir.path(), Path::new("/etc/passwd")).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
     }
 }
