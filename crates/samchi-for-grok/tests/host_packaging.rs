@@ -26,6 +26,7 @@ fn skill_states_async_host_contract() {
         "`grok_cancel`",
         "`grok_respond`",
         "pending_approval",
+        "worker_gone",
         "tool_timeout_sec = 3600",
         "Timeout does not cancel the turn",
         "Do not silently edit user config",

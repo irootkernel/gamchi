@@ -59,3 +59,7 @@ TASK-013 live respond is
 `cargo test -p samchi-for-grok --test live_respond -- --ignored`.
 Untrusted does not run a gated shell without `grok_respond`; the parent
 responds then awaits again.
+TASK-014 crash no-replay is offline: kill the owner or child of an
+`inProgress` turn; the ledger is `failed`/`worker_gone` (or an earlier
+terminal) and no second Grok child is started for that `turn_id`. Live Grok
+is not required.

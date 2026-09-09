@@ -196,7 +196,10 @@ failure reason `worker_gone`. Infinite wait is forbidden.
 
 After reconnect, the parent may **observe** a terminal ledger record
 (`grok_result`, `grok_list`). It cannot resume an in-flight turn whose worker
-is gone. That is weaker than “Gaori plus durability”; it is honest.
+is gone. Do not auto-replay the same input on that `turn_id`. Crash is
+`failed` / `worker_gone`, not `interrupted`. A later distinct user request
+may `grok_spawn` or `grok_followup` as a **new** turn. That is weaker than
+“Gaori plus durability”; it is honest.
 
 ## Non-goals
 

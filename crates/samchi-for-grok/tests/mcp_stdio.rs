@@ -381,3 +381,59 @@ fn grok_followup_fails_closed_without_load_session() {
         "expected loadSession fail-closed, got {done}"
     );
 }
+
+#[test]
+fn crash_child_is_worker_gone_without_replay() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut rpc = Rpc::start_hang(home.path().to_str().unwrap());
+    let _ = rpc.call(
+        "initialize",
+        json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
+    );
+    let spawn = rpc.tool(
+        "grok_spawn",
+        json!({"prompt":"hang","cwd": cwd.path().to_str().unwrap()}),
+    );
+    let turn_id = spawn["turn_id"].as_str().unwrap().to_string();
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let ledger = Ledger::open(home.path().to_path_buf()).expect("ledger");
+    let turn = ledger.read_turn(&turn_id).expect("turn");
+    let generation = ledger
+        .read_generation(&turn.generation_id)
+        .expect("generation");
+    let pid = generation.child_pid.expect("child_pid");
+    assert!(Command::new("kill")
+        .args(["-9", &pid.to_string()])
+        .status()
+        .expect("kill")
+        .success());
+    let done = rpc.tool("grok_await", json!({"turn_id": turn_id}));
+    assert_eq!(done["status"], "failed", "crash {done}");
+    assert_ne!(done["status"], "interrupted");
+    assert_eq!(
+        done["failure_reason"], "worker_gone",
+        "crash must be worker_gone, got {done}"
+    );
+    let generation = ledger
+        .read_generation(&turn.generation_id)
+        .expect("generation after");
+    assert_eq!(
+        generation.child_pid,
+        Some(pid),
+        "must not start a second child"
+    );
+    let listed = rpc.tool("grok_list", json!({}));
+    let rows = listed["turns"].as_array().expect("turns");
+    assert!(rows.iter().any(|row| row["turn_id"] == turn_id));
+    let result = rpc.tool("grok_result", json!({"turn_id": turn_id}));
+    assert_eq!(result["status"], "failed");
+    let again = rpc.tool(
+        "grok_spawn",
+        json!({"prompt":"hang","cwd": cwd.path().to_str().unwrap()}),
+    );
+    assert_ne!(
+        again["turn_id"], turn_id,
+        "spawn must be a new turn, not replay"
+    );
+}

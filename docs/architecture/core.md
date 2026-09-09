@@ -94,7 +94,9 @@ new turn. Load replay is history. Missing `loadSession` fails closed.
 TASK-013 publishes MCP `grok_respond` and CLI `worker respond`: untrusted
 and on-request park ACP `session/request_permission` while the turn stays
 `inProgress`. `pending_approval` is not a TurnStatus. Default `never` still
-auto-approves. `app-server` stays unpublished until EPIC-005.
+auto-approves. TASK-014 forbids auto-replay of the same input after a dead
+generation: observe `failed`/`worker_gone` only. Crash is not `interrupted`.
+`app-server` stays unpublished until EPIC-005.
 
 ## v1 scope
 

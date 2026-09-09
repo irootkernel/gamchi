@@ -47,6 +47,10 @@ is not a TurnStatus; call `grok_respond` then `grok_await` again.
    again. Default yolo turns never do this.
 8. If the host deadline is verified too short for `grok_await`, fall back to
    `grok_wait` on the same `turn_id`. Timeout does not cancel the turn.
+9. If the turn is `failed` with `worker_gone`, do not replay that prompt on
+   the same `turn_id`. Observe with `grok_result` or `grok_list`. A later
+   distinct user request may spawn or follow up as a new turn. Crash is not
+   `interrupted`.
 
 ## Host deadline
 

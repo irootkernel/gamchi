@@ -46,7 +46,7 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: `TASK-014` (EPIC-004).
+Next eligible Task: `TASK-015` (EPIC-005).
 
 ## Phase index
 
@@ -132,7 +132,7 @@ long-lived server process; that is not a Dolgorae unix socket.
 | [TASK-011](#epic-004-supervision) | cancel / interrupt, process-group teardown | `Completed` | TASK-010 | in-flight prompt dies and the turn is cancelled |
 | [TASK-012](#epic-004-supervision) | follow-up: session/load + new turn | `Completed` | TASK-011 | second turn same ACP session. load replay is history, not new items or approvals. fail closed if session/load was not advertised |
 | [TASK-013](#epic-004-supervision) | Optional grok_respond for untrusted/on-request | `Completed` | TASK-012 | untrusted does not run a shell without grok_respond. await returns pending_approval (not a TurnStatus) then the parent awaits again |
-| [TASK-014](#epic-004-supervision) | Crash: no input replay; resume is observation only | `Planned` | TASK-013 | killing the worker does not auto-replay the same turn |
+| [TASK-014](#epic-004-supervision) | Crash: no input replay; resume is observation only | `Completed` | TASK-013 | killing the worker does not auto-replay the same turn |
 
 ## EPIC-005: App-server wire
 

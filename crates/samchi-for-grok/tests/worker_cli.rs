@@ -182,6 +182,83 @@ fn cancel_interrupts_hanging_start() {
 }
 
 #[test]
+fn owner_death_is_worker_gone_not_replayed() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut child = Command::new(bin())
+        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .env("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")
+        .args([
+            "worker",
+            "start",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--cwd",
+            cwd.path().to_str().unwrap(),
+            "hang",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("start");
+    let mut stdout = child.stdout.take().expect("stdout");
+    let mut line = String::new();
+    let mut reader = std::io::BufReader::new(&mut stdout);
+    use std::io::BufRead;
+    reader.read_line(&mut line).expect("ids");
+    let v: Value = serde_json::from_str(line.trim()).expect("json");
+    let turn_id = v["turn_id"].as_str().expect("turn_id").to_string();
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let ledger = Ledger::open(home.path().to_path_buf()).expect("ledger");
+    let turn = ledger.read_turn(&turn_id).expect("turn");
+    let generation = ledger
+        .read_generation(&turn.generation_id)
+        .expect("generation");
+    let grok_pid = generation.child_pid;
+    child.kill().expect("kill owner");
+    let _ = child.wait();
+    let snap = Command::new(bin())
+        .args([
+            "worker",
+            "status",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--turn-id",
+            &turn_id,
+        ])
+        .output()
+        .expect("status");
+    assert!(snap.status.success());
+    let body: Value = serde_json::from_str(&String::from_utf8_lossy(&snap.stdout)).unwrap();
+    assert_eq!(body["status"], "failed", "owner death {body}");
+    assert_ne!(body["status"], "interrupted");
+    assert_eq!(body["failure_reason"], "worker_gone");
+    let generation = ledger
+        .read_generation(&turn.generation_id)
+        .expect("generation after");
+    assert_eq!(generation.child_pid, grok_pid);
+    if let Some(pid) = grok_pid {
+        let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
+    }
+    let result = Command::new(bin())
+        .args([
+            "worker",
+            "result",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--turn-id",
+            &turn_id,
+        ])
+        .output()
+        .expect("result");
+    let done: Value = serde_json::from_str(&String::from_utf8_lossy(&result.stdout)).unwrap();
+    assert_eq!(done["status"], "failed");
+}
+
+#[test]
 fn list_and_result_json() {
     let home = tempfile::tempdir().expect("home");
     let list = Command::new(bin())
