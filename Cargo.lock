@@ -1024,9 +1024,11 @@ dependencies = [
 name = "samchi-for-grok"
 version = "0.0.0"
 dependencies = [
+ "base64",
  "samchi-adapter-grok",
  "samchi-core",
  "serde_json",
+ "sha1",
  "tempfile",
 ]
 
@@ -1159,6 +1161,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "sha1"
+version = "0.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a978451301f4db1d02937a4ab3ccce137717b81826e79b7d49ffe3244a13c3b8"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
 ]
 
 [[package]]

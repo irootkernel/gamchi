@@ -96,7 +96,10 @@ and on-request park ACP `session/request_permission` while the turn stays
 `inProgress`. `pending_approval` is not a TurnStatus. Default `never` still
 auto-approves. TASK-014 forbids auto-replay of the same input after a dead
 generation: observe `failed`/`worker_gone` only. Crash is not `interrupted`.
-`app-server` stays unpublished until EPIC-005.
+TASK-015 publishes the app-server facade listen:
+`app-server --listen unix://<absolute-path> [--home]`. The process owns the
+Unix socket, upgrades HTTP/1.1 GET `/` to WebSocket, and fails closed on an
+occupied path. JSON-RPC `initialize` remains TASK-016.
 
 ## v1 scope
 

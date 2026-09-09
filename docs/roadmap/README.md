@@ -46,7 +46,7 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: `TASK-015` (EPIC-005).
+Next eligible Task: `TASK-016` (EPIC-005).
 
 ## Phase index
 
@@ -145,7 +145,7 @@ long-lived server process; that is not a Dolgorae unix socket.
 
 ## EPIC-005: App-server wire
 
-Status: `Planned`
+Status: `In Progress`
 
 Depends on: EPIC-004
 
@@ -155,7 +155,7 @@ Layer the CCAS standard wire on the same worker. No new runtime.
 
 | Task | Title | Status | Depends on | Done when |
 | --- | --- | --- | --- | --- |
-| [TASK-015](#epic-005-app-server-wire) | app-server --listen unix://… [--home], UDS websocket, occupied path | `Planned` | TASK-014 | This repo records the HTTP/WS rejection table (copy from CCAS/Dolgorae constants). Occupied path fail-closed |
+| [TASK-015](#epic-005-app-server-wire) | app-server --listen unix://… [--home], UDS websocket, occupied path | `Completed` | TASK-014 | This repo records the HTTP/WS rejection table (copy from CCAS/Dolgorae constants). Occupied path fail-closed |
 | [TASK-016](#epic-005-app-server-wire) | initialize / initialized / account/read / Grok model/list | `Planned` | TASK-015 | userAgent=samchi-for-grok/app-server-v1. capabilities.ccas is -32602 |
 | [TASK-017](#epic-005-app-server-wire) | nine thread/turn methods call the worker | `Planned` | TASK-016 | socket thread/start+turn/start writes the same ledger as MCP spawn |
 | [TASK-018](#epic-005-app-server-wire) | server notifications + requestApproval on the socket | `Planned` | TASK-017 | item/started, completed, turn/completed. approvals are socket server requests |

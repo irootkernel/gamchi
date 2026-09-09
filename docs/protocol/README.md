@@ -61,6 +61,27 @@ REQ-TRANSPORT-004 uses):
 | solicited response envelope excluding streamed `result` | 64 KiB |
 | correlation wait | 4,096 messages |
 
+HTTP/WS upgrade rejection (TASK-015). Copied as the closed inverse of
+Dolgorae's client handshake in `src/app_server.rs` (the request Dolgorae
+sends and the 101 response it requires). Numeric bounds above are the
+CCAS REQ-TRANSPORT-004 / Dolgorae constants already in `source_wire`.
+Do not import CCAS or Dolgorae.
+
+| Condition | Response |
+| --- | --- |
+| Headers exceed 16 KiB before `\r\n\r\n` | Close with no HTTP status |
+| Method is not `GET` | `405 Method Not Allowed` |
+| Target is not `/` | `404 Not Found` |
+| Version is not `HTTP/1.1` | `400 Bad Request` |
+| `Upgrade` is missing or not `websocket` | `400 Bad Request` |
+| `Connection` does not include `Upgrade` | `400 Bad Request` |
+| `Sec-WebSocket-Key` missing or not 16-byte base64 | `400 Bad Request` |
+| `Sec-WebSocket-Version` is not `13` | `426 Upgrade Required` with `Sec-WebSocket-Version: 13` |
+
+A valid upgrade replies `HTTP/1.1 101 Switching Protocols` with
+`Upgrade: websocket`, `Connection: Upgrade`, and `Sec-WebSocket-Accept`.
+Occupied Unix listen paths fail closed and are not unlinked.
+
 ## Internal types
 
 Rust types in `crates/core` (`source_wire`) close what the **subset bytes actually name**:

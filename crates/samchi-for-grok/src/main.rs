@@ -1,6 +1,7 @@
-//! Command samchi-for-grok is the local Grok worker, MCP host surface, and later
-//! app-server. TASK-008 publishes CLI worker start/wait/status/result/list.
+//! Command samchi-for-grok is the local Grok worker, MCP host surface, and
+//! app-server listen facade. TASK-015 publishes Unix-domain HTTP/WS upgrade.
 
+mod app_server;
 mod mcp;
 mod ops;
 mod worker;
@@ -65,16 +66,7 @@ fn run(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
                 let mut lock = stdin.lock();
                 mcp::run_mcp(&args[1..], &mut lock, stdout)
             }
-            "app-server" => {
-                write_all(
-                    stderr,
-                    &format!(
-                        "SAMCHI_FOR_GROK_STARTUP_ERROR NOT_IMPLEMENTED {}\n",
-                        args[0]
-                    ),
-                );
-                1
-            }
+            "app-server" => app_server::run(&args[1..], stderr),
             other => {
                 write_all(stderr, "SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG\n");
                 if !other.starts_with('-') {
@@ -201,15 +193,20 @@ mod tests {
     }
 
     #[test]
-    fn unimplemented_surfaces() {
+    fn app_server_requires_listen() {
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
         let code = run(&["app-server"], &mut stdout, &mut stderr);
         assert_eq!(code, 1);
         let err = String::from_utf8_lossy(&stderr);
         assert!(
-            err.contains("SAMCHI_FOR_GROK_STARTUP_ERROR NOT_IMPLEMENTED app-server"),
+            err.contains("SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG"),
             "stderr {err:?}"
+        );
+        assert!(
+            stdout.is_empty(),
+            "stdout {:?}",
+            String::from_utf8_lossy(&stdout)
         );
     }
 

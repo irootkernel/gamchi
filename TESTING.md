@@ -63,3 +63,6 @@ TASK-014 crash no-replay is offline: kill the owner or child of an
 `inProgress` turn; the ledger is `failed`/`worker_gone` (or an earlier
 terminal) and no second Grok child is started for that `turn_id`. Live Grok
 is not required.
+TASK-015 app-server listen is offline in `samchi-for-grok` (`app_server`):
+HTTP/1.1 upgrade on `/`, recorded rejection table, occupied path fail-closed.
+Live Grok is not required.
