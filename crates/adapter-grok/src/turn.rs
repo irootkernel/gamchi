@@ -45,6 +45,9 @@ pub struct TurnRequest {
     pub client_request_id: Option<String>,
     /// When set, admit on this thread and `session/load` its stored ACP session.
     pub follow_up_thread_id: Option<String>,
+    /// When set, admit on this existing thread with `session/new` (app-server
+    /// `turn/start` after `thread/start`). Mutually exclusive with follow-up.
+    pub reuse_thread_id: Option<String>,
 }
 
 /// Terminal turn plus git `files_changed`.
@@ -145,6 +148,12 @@ async fn run_turn_async(
         },
     };
 
+    if req.follow_up_thread_id.is_some() && req.reuse_thread_id.is_some() {
+        return Err(AdapterError::Acp(
+            "follow_up_thread_id and reuse_thread_id are mutually exclusive".to_string(),
+        ));
+    }
+
     let start_head = git_head(&req.cwd);
     let (thread, load_session_id) = if let Some(thread_id) = req.follow_up_thread_id.as_deref() {
         let thread = ledger.read_thread(thread_id)?;
@@ -155,6 +164,8 @@ async fn run_turn_async(
         }
         let sid = thread.acp_session_id.clone();
         (thread, Some(sid))
+    } else if let Some(thread_id) = req.reuse_thread_id.as_deref() {
+        (ledger.read_thread(thread_id)?, None)
     } else {
         (
             ledger.create_thread(&NewThread {
@@ -182,7 +193,20 @@ async fn run_turn_async(
     let generation_id = turn.generation_id.clone();
     let turn_id = turn.id.clone();
     let thread_id = turn.thread_id.clone();
-    if ledger.read_turn(&turn_id)?.status.is_terminal() {
+    let fail_admitted = |err: AdapterError| -> AdapterError {
+        if let Ok(current) = ledger.read_turn(&turn_id) {
+            if !current.status.is_terminal() {
+                let _ = ledger.publish_terminal(&turn_id, TurnStatus::Failed, "", &err.to_string());
+            }
+        }
+        err
+    };
+    if ledger
+        .read_turn(&turn_id)
+        .map_err(|e| fail_admitted(e.into()))?
+        .status
+        .is_terminal()
+    {
         return Ok(TurnOutcome {
             turn: ledger.read_turn(&turn_id)?,
             files_changed: Vec::new(),
@@ -192,7 +216,9 @@ async fn run_turn_async(
 
     let mapper = Mapper::new(&req.prompt);
     for item in mapper.items() {
-        ledger.upsert_item(&turn_id, item.clone())?;
+        ledger
+            .upsert_item(&turn_id, item.clone())
+            .map_err(|e| fail_admitted(e.into()))?;
     }
     let shared = Arc::new(Mutex::new(Shared {
         mapper,
@@ -217,9 +243,14 @@ async fn run_turn_async(
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = cmd.spawn().map_err(AdapterError::Io)?;
+    let mut child = cmd
+        .spawn()
+        .map_err(AdapterError::Io)
+        .map_err(fail_admitted)?;
     let child_pid = child.id();
-    ledger.set_child_pid(&generation_id, child_pid)?;
+    ledger
+        .set_child_pid(&generation_id, child_pid)
+        .map_err(|e| fail_admitted(e.into()))?;
     if ledger.read_turn(&turn_id)?.status.is_terminal() {
         teardown_process_group(child_pid);
         let _ = child.kill();
@@ -233,11 +264,11 @@ async fn run_turn_async(
     let stdin = child
         .stdin
         .take()
-        .ok_or_else(|| AdapterError::Acp("child stdin".to_string()))?;
+        .ok_or_else(|| fail_admitted(AdapterError::Acp("child stdin".to_string())))?;
     let stdout = child
         .stdout
         .take()
-        .ok_or_else(|| AdapterError::Acp("child stdout".to_string()))?;
+        .ok_or_else(|| fail_admitted(AdapterError::Acp("child stdout".to_string())))?;
     if let Some(mut stderr) = child.stderr.take() {
         tokio::spawn(async move {
             let mut buf = Vec::new();

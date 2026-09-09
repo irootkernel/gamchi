@@ -1,11 +1,12 @@
 //! Drive the adapter turn against the fake ACP agent. Does not spawn Grok.
 
 use samchi_adapter_grok::{run_turn, run_turn_on_admit, AgentCommand, TurnRequest};
-use samchi_core::ledger::Ledger;
+use samchi_core::ledger::{Ledger, NewThread};
 use samchi_core::source_wire::{
     ApprovalPolicy, ThreadSandbox, TurnStatus, ITEM_AGENT_MESSAGE, ITEM_FILE_CHANGE,
     ITEM_USER_MESSAGE,
 };
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -29,6 +30,7 @@ fn fake_agent_turn_publishes_items() {
             },
             client_request_id: None,
             follow_up_thread_id: None,
+            reuse_thread_id: None,
         },
     )
     .unwrap_or_else(|err| panic!("{err}"));
@@ -78,6 +80,7 @@ fn concurrent_wait_sees_completed_not_worker_gone() {
             },
             client_request_id: None,
             follow_up_thread_id: None,
+            reuse_thread_id: None,
         },
         |turn| {
             let _ = tx.send(turn.id.clone());
@@ -110,6 +113,7 @@ fn follow_up_loads_same_session_without_duplicating_history() {
             },
             client_request_id: None,
             follow_up_thread_id: None,
+            reuse_thread_id: None,
         },
     )
     .unwrap_or_else(|err| panic!("{err}"));
@@ -129,6 +133,7 @@ fn follow_up_loads_same_session_without_duplicating_history() {
             },
             client_request_id: None,
             follow_up_thread_id: Some(first.turn.thread_id.clone()),
+            reuse_thread_id: None,
         },
     )
     .unwrap_or_else(|err| panic!("{err}"));
@@ -147,4 +152,84 @@ fn follow_up_loads_same_session_without_duplicating_history() {
         .items
         .iter()
         .any(|item| item.item_type == ITEM_USER_MESSAGE && item.text == "two"));
+}
+
+#[test]
+fn reuse_thread_id_admits_session_new_on_existing_thread() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let ledger = Arc::new(Ledger::open(home.path().to_path_buf()).expect("ledger"));
+    let thread = ledger
+        .create_thread(&NewThread {
+            cwd: cwd.path().display().to_string(),
+            model: "test".to_string(),
+            sandbox: ThreadSandbox::ReadOnly,
+            approval_policy: ApprovalPolicy::Untrusted,
+            developer_instructions: String::new(),
+            acp_session_id: String::new(),
+        })
+        .unwrap();
+    let outcome = run_turn(
+        ledger.clone(),
+        &TurnRequest {
+            cwd: cwd.path().to_path_buf(),
+            prompt: "ping".to_string(),
+            approval: ApprovalPolicy::Untrusted,
+            sandbox: ThreadSandbox::ReadOnly,
+            extra: samchi_adapter_grok::ExtraSpawnFields::default(),
+            model: "test".to_string(),
+            command: AgentCommand::Override {
+                program: env!("CARGO_BIN_EXE_fake-acp-agent").into(),
+                args: Vec::new(),
+            },
+            client_request_id: None,
+            follow_up_thread_id: None,
+            reuse_thread_id: Some(thread.id.clone()),
+        },
+    )
+    .unwrap_or_else(|err| panic!("{err}"));
+    assert_eq!(outcome.turn.thread_id, thread.id);
+    let stored = ledger.read_thread(&thread.id).unwrap();
+    assert_eq!(stored.acp_session_id, samchi_adapter_grok::STUB_SESSION_ID);
+}
+
+#[test]
+fn spawn_failure_after_admit_publishes_failed() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let ledger = Arc::new(Ledger::open(home.path().to_path_buf()).expect("ledger"));
+    let thread = ledger
+        .create_thread(&NewThread {
+            cwd: cwd.path().display().to_string(),
+            model: "test".to_string(),
+            sandbox: ThreadSandbox::ReadOnly,
+            approval_policy: ApprovalPolicy::Untrusted,
+            developer_instructions: String::new(),
+            acp_session_id: String::new(),
+        })
+        .unwrap();
+    let err = run_turn(
+        ledger.clone(),
+        &TurnRequest {
+            cwd: cwd.path().to_path_buf(),
+            prompt: "ping".to_string(),
+            approval: ApprovalPolicy::Untrusted,
+            sandbox: ThreadSandbox::ReadOnly,
+            extra: samchi_adapter_grok::ExtraSpawnFields::default(),
+            model: "test".to_string(),
+            command: AgentCommand::Override {
+                program: PathBuf::from("/no/such/samchi-acp-agent"),
+                args: Vec::new(),
+            },
+            client_request_id: None,
+            follow_up_thread_id: None,
+            reuse_thread_id: Some(thread.id.clone()),
+        },
+    )
+    .expect_err("missing agent");
+    let _ = err;
+    let turns = ledger.list_turns(None).unwrap();
+    assert_eq!(turns.len(), 1);
+    assert_eq!(turns[0].status, TurnStatus::Failed);
+    assert_eq!(turns[0].thread_id, thread.id);
 }

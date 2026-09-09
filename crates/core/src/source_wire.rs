@@ -126,6 +126,10 @@ impl<'de> Deserialize<'de> for ThreadSandbox {
 pub const DEFAULT_APPROVAL_POLICY: ApprovalPolicy = ApprovalPolicy::Never;
 pub const DEFAULT_THREAD_SANDBOX: ThreadSandbox = ThreadSandbox::WorkspaceWrite;
 
+/// App-server omitted-field defaults (Dolgorae/CCAS wire).
+pub const APP_SERVER_DEFAULT_APPROVAL_POLICY: ApprovalPolicy = ApprovalPolicy::Untrusted;
+pub const APP_SERVER_DEFAULT_THREAD_SANDBOX: ThreadSandbox = ThreadSandbox::ReadOnly;
+
 /// Subset turn sandboxPolicy type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TurnSandboxType {
@@ -138,6 +142,13 @@ impl TurnSandboxType {
         match self {
             Self::ReadOnly => "readOnly",
             Self::WorkspaceWrite => "workspaceWrite",
+        }
+    }
+
+    pub fn to_thread_sandbox(self) -> ThreadSandbox {
+        match self {
+            Self::ReadOnly => ThreadSandbox::ReadOnly,
+            Self::WorkspaceWrite => ThreadSandbox::WorkspaceWrite,
         }
     }
 }
@@ -342,6 +353,18 @@ pub fn parse_thread_sandbox(v: &str) -> Result<ThreadSandbox, UnsupportedValueEr
         "workspace-write" => Ok(ThreadSandbox::WorkspaceWrite),
         _ => Err(UnsupportedValueError {
             kind: "sandbox",
+            value: v.to_string(),
+        }),
+    }
+}
+
+/// Rejects unknown `sandboxPolicy.type` values rather than ignoring them.
+pub fn parse_turn_sandbox_type(v: &str) -> Result<TurnSandboxType, UnsupportedValueError> {
+    match v {
+        "readOnly" => Ok(TurnSandboxType::ReadOnly),
+        "workspaceWrite" => Ok(TurnSandboxType::WorkspaceWrite),
+        _ => Err(UnsupportedValueError {
+            kind: "sandboxPolicy.type",
             value: v.to_string(),
         }),
     }
@@ -611,6 +634,24 @@ mod tests {
         assert_eq!(map_stop_reason("refusal"), TurnStatus::Failed);
         assert_eq!(DEFAULT_APPROVAL_POLICY, ApprovalPolicy::Never);
         assert_eq!(DEFAULT_THREAD_SANDBOX, ThreadSandbox::WorkspaceWrite);
+        assert_eq!(
+            APP_SERVER_DEFAULT_APPROVAL_POLICY,
+            ApprovalPolicy::Untrusted
+        );
+        assert_eq!(APP_SERVER_DEFAULT_THREAD_SANDBOX, ThreadSandbox::ReadOnly);
+        assert_eq!(
+            parse_turn_sandbox_type("readOnly")
+                .unwrap()
+                .to_thread_sandbox(),
+            ThreadSandbox::ReadOnly
+        );
+        assert_eq!(
+            parse_turn_sandbox_type("workspaceWrite")
+                .unwrap()
+                .to_thread_sandbox(),
+            ThreadSandbox::WorkspaceWrite
+        );
+        assert!(parse_turn_sandbox_type("read-only").is_err());
         assert!(parse_turn_status("always").is_err(), "expected rejection");
         assert_eq!(parse_turn_status("failed").unwrap(), TurnStatus::Failed);
         assert!(TurnStatus::Failed.is_terminal());

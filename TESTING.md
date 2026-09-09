@@ -68,3 +68,8 @@ HTTP/1.1 upgrade on `/`, recorded rejection table, occupied path fail-closed.
 TASK-016 handshake is offline JSON-RPC on that socket: honest
 `userAgent=samchi-for-grok/app-server-v1`, `capabilities.ccas` is `-32602`,
 Grok `model/list`, no `jsonrpc` member. Live Grok is not required.
+TASK-017 thread/turn methods are offline on the same home: socket
+`thread/start`+`turn/start` write the same ledger as MCP spawn (fake ACP
+agent via `SAMCHI_FOR_GROK_ACP_PROGRAM`). Omitted socket fields stay
+`read-only` / `untrusted`. One inProgress turn per thread. `thread/fork`
+and extra subset fields fail closed. Live Grok is not required.

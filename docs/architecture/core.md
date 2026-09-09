@@ -102,7 +102,11 @@ Unix socket, upgrades HTTP/1.1 GET `/` to WebSocket, and fails closed on an
 occupied path. TASK-016 publishes honest JSON-RPC `initialize` /
 `initialized` / `account/read` / Grok `model/list` on that socket.
 `userAgent=samchi-for-grok/app-server-v1` stays out of core.
-`capabilities.ccas` is JSON-RPC `-32602`.
+`capabilities.ccas` is JSON-RPC `-32602`. TASK-017 publishes
+`thread/start`, `thread/resume`, `thread/read`, `turn/start`, and
+`turn/interrupt` on the same worker ledger as MCP spawn. Omitted socket
+sandbox and approvalPolicy stay `read-only` and `untrusted`. `thread/fork`
+is recognized and fail-closed.
 
 ## v1 scope
 

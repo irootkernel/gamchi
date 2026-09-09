@@ -3,6 +3,14 @@
 use samchi_core::source_wire::{ApprovalPolicy, ThreadSandbox};
 use std::path::{Path, PathBuf};
 
+/// Wire names of subset spawn fields the adapter cannot implement.
+pub const UNENFORCEABLE_EXTRA_FIELD_NAMES: &[&str] = &[
+    "writableRoots",
+    "networkAccess",
+    "excludeSlashTmp",
+    "excludeTmpdirEnvVar",
+];
+
 /// Optional subset fields the parent must not send unless the adapter implements them.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ExtraSpawnFields {
@@ -16,16 +24,16 @@ impl ExtraSpawnFields {
     /// First present extra field, if any.
     pub fn first_set(&self) -> Option<&'static str> {
         if self.writable_roots.is_some() {
-            return Some("writableRoots");
+            return Some(UNENFORCEABLE_EXTRA_FIELD_NAMES[0]);
         }
         if self.network_access.is_some() {
-            return Some("networkAccess");
+            return Some(UNENFORCEABLE_EXTRA_FIELD_NAMES[1]);
         }
         if self.exclude_slash_tmp.is_some() {
-            return Some("excludeSlashTmp");
+            return Some(UNENFORCEABLE_EXTRA_FIELD_NAMES[2]);
         }
         if self.exclude_tmpdir_env_var.is_some() {
-            return Some("excludeTmpdirEnvVar");
+            return Some(UNENFORCEABLE_EXTRA_FIELD_NAMES[3]);
         }
         None
     }

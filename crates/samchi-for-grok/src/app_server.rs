@@ -1,16 +1,26 @@
-//! Unix-domain app-server listen, HTTP/1.1 WebSocket upgrade, and TASK-016
-//! JSON-RPC handshake (initialize / initialized / account/read / model/list).
+//! Unix-domain app-server listen, HTTP/1.1 WebSocket upgrade, handshake,
+//! and TASK-017 thread/turn methods on the existing worker ledger.
 
-use crate::ops::open_home;
+use crate::ops::{acp_command, cancel_turn, open_home, open_ledger};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
-use samchi_core::source_wire::{MAX_HTTP_UPGRADE_BYTES, MAX_WEBSOCKET_FRAME_BYTES};
+use samchi_adapter_grok::{
+    run_turn_on_admit, ExtraSpawnFields, TurnRequest, UNENFORCEABLE_EXTRA_FIELD_NAMES,
+};
+use samchi_core::ledger::{Ledger, NewThread};
+use samchi_core::source_wire::{
+    parse_approval_policy, parse_thread_sandbox, parse_turn_sandbox_type, Turn,
+    APP_SERVER_DEFAULT_APPROVAL_POLICY, APP_SERVER_DEFAULT_THREAD_SANDBOX, MAX_HTTP_UPGRADE_BYTES,
+    MAX_WEBSOCKET_FRAME_BYTES,
+};
 use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
 use std::io::{self, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::sync::{mpsc, Arc};
 use std::thread;
+use std::time::Duration;
 
 /// Honest initialize identity. Kept out of `samchi-core`.
 pub(crate) const USER_AGENT: &str = "samchi-for-grok/app-server-v1";
@@ -291,7 +301,7 @@ fn websocket_accept(key: &str) -> String {
     STANDARD.encode(hasher.finalize())
 }
 
-fn rpc_loop(stream: &mut UnixStream, _home: &Path) -> io::Result<()> {
+fn rpc_loop(stream: &mut UnixStream, home: &Path) -> io::Result<()> {
     loop {
         match read_ws_text(stream) {
             Ok(None) => return Ok(()),
@@ -299,7 +309,7 @@ fn rpc_loop(stream: &mut UnixStream, _home: &Path) -> io::Result<()> {
                 let Ok(msg) = serde_json::from_slice::<Value>(&bytes) else {
                     continue;
                 };
-                if let Some(reply) = handle_rpc(&msg) {
+                if let Some(reply) = handle_rpc(&msg, home) {
                     write_ws_text(stream, &serde_json::to_vec(&reply)?)?;
                 }
             }
@@ -308,7 +318,7 @@ fn rpc_loop(stream: &mut UnixStream, _home: &Path) -> io::Result<()> {
     }
 }
 
-fn handle_rpc(msg: &Value) -> Option<Value> {
+fn handle_rpc(msg: &Value, home: &Path) -> Option<Value> {
     let method = msg.get("method").and_then(Value::as_str)?;
     let params = msg.get("params").cloned().unwrap_or(json!({}));
     let id = msg.get("id").cloned()?;
@@ -324,8 +334,259 @@ fn handle_rpc(msg: &Value) -> Option<Value> {
         "initialize" => Some(json!({"id": id, "result": initialize_result()})),
         "account/read" => Some(json!({"id": id, "result": json!({"requiresOpenaiAuth": false})})),
         "model/list" => Some(json!({"id": id, "result": model_list_result()})),
+        "thread/fork" => Some(rpc_error(id, METHOD_NOT_FOUND, "thread/fork")),
+        "thread/start" => Some(rpc_result(id, thread_start(&params, home))),
+        "thread/resume" => Some(rpc_result(id, thread_resume(&params, home))),
+        "thread/read" => Some(rpc_result(id, thread_read(&params, home))),
+        "turn/start" => Some(rpc_result(id, turn_start(&params, home))),
+        "turn/interrupt" => Some(rpc_result(id, turn_interrupt(&params, home))),
         _ => Some(rpc_error(id, METHOD_NOT_FOUND, method)),
     }
+}
+
+fn rpc_result(id: Value, result: Result<Value, String>) -> Value {
+    match result {
+        Ok(result) => json!({"id": id, "result": result}),
+        Err(message) => rpc_error(id, METHOD_NOT_FOUND, &message),
+    }
+}
+
+fn reject_unenforceable_extras(v: &Value) -> Result<(), String> {
+    for field in UNENFORCEABLE_EXTRA_FIELD_NAMES {
+        if v.get(*field).is_some() {
+            return Err(format!("unenforceable extra spawn field {field}"));
+        }
+    }
+    Ok(())
+}
+
+fn thread_start(params: &Value, home: &Path) -> Result<Value, String> {
+    reject_unenforceable_extras(params)?;
+    let cwd = match params.get("cwd").and_then(Value::as_str) {
+        Some(p) => {
+            let path = PathBuf::from(p);
+            if !path.is_absolute() {
+                return Err("cwd must be absolute".to_string());
+            }
+            path.display().to_string()
+        }
+        None => {
+            let path = std::env::current_dir().map_err(|e| e.to_string())?;
+            if !path.is_absolute() {
+                return Err("cwd must be absolute".to_string());
+            }
+            path.display().to_string()
+        }
+    };
+    let model = params
+        .get("model")
+        .and_then(Value::as_str)
+        .unwrap_or("grok")
+        .to_string();
+    let sandbox = match params.get("sandbox").and_then(Value::as_str) {
+        Some(v) => parse_thread_sandbox(v).map_err(|e| e.to_string())?,
+        None => APP_SERVER_DEFAULT_THREAD_SANDBOX,
+    };
+    let approval_policy = match params.get("approvalPolicy").and_then(Value::as_str) {
+        Some(v) => parse_approval_policy(v).map_err(|e| e.to_string())?,
+        None => APP_SERVER_DEFAULT_APPROVAL_POLICY,
+    };
+    let developer_instructions = params
+        .get("developerInstructions")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let ledger = open_ledger(Some(home))?;
+    let stored = ledger
+        .create_thread(&NewThread {
+            cwd,
+            model,
+            sandbox,
+            approval_policy,
+            developer_instructions,
+            acp_session_id: String::new(),
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(json!({"thread": {"id": stored.id, "turns": []}}))
+}
+
+fn thread_resume(params: &Value, home: &Path) -> Result<Value, String> {
+    reject_unenforceable_extras(params)?;
+    let thread_id = params
+        .get("threadId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "threadId required".to_string())?;
+    let ledger = open_ledger(Some(home))?;
+    let stored = ledger.read_thread(thread_id).map_err(|e| e.to_string())?;
+    Ok(json!({
+        "thread": {
+            "id": stored.id,
+            "turns": turns_for_thread(&ledger, &stored.id)?,
+        }
+    }))
+}
+
+fn thread_read(params: &Value, home: &Path) -> Result<Value, String> {
+    reject_unenforceable_extras(params)?;
+    let thread_id = params
+        .get("threadId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "threadId required".to_string())?;
+    let ledger = open_ledger(Some(home))?;
+    let stored = ledger.read_thread(thread_id).map_err(|e| e.to_string())?;
+    let turns = if params.get("includeTurns").and_then(Value::as_bool) == Some(false) {
+        Vec::new()
+    } else {
+        turns_for_thread(&ledger, &stored.id)?
+    };
+    Ok(json!({"thread": {"id": stored.id, "turns": turns}}))
+}
+
+fn turn_start(params: &Value, home: &Path) -> Result<Value, String> {
+    reject_unenforceable_extras(params)?;
+    if let Some(policy) = params.get("sandboxPolicy") {
+        reject_unenforceable_extras(policy)?;
+    }
+    let thread_id = params
+        .get("threadId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "threadId required".to_string())?
+        .to_string();
+    let prompt = prompt_from_input(params.get("input").unwrap_or(&Value::Null))?;
+    let ledger = Arc::new(open_ledger(Some(home))?);
+    let stored = ledger.read_thread(&thread_id).map_err(|e| e.to_string())?;
+    let sandbox = match params.get("sandboxPolicy") {
+        Some(policy) => {
+            let ty = policy
+                .get("type")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "sandboxPolicy.type required".to_string())?;
+            parse_turn_sandbox_type(ty)
+                .map_err(|e| e.to_string())?
+                .to_thread_sandbox()
+        }
+        None => stored.sandbox,
+    };
+    let approval = match params.get("approvalPolicy").and_then(Value::as_str) {
+        Some(v) => parse_approval_policy(v).map_err(|e| e.to_string())?,
+        None => stored.approval_policy,
+    };
+    let model = params
+        .get("model")
+        .and_then(Value::as_str)
+        .unwrap_or(&stored.model)
+        .to_string();
+    let (follow_up_thread_id, reuse_thread_id) = if stored.acp_session_id.is_empty() {
+        (None, Some(thread_id.clone()))
+    } else {
+        (Some(thread_id.clone()), None)
+    };
+    let req = TurnRequest {
+        cwd: PathBuf::from(&stored.cwd),
+        prompt,
+        approval,
+        sandbox,
+        extra: ExtraSpawnFields::default(),
+        model,
+        command: acp_command(),
+        client_request_id: None,
+        follow_up_thread_id,
+        reuse_thread_id,
+    };
+    let (tx, rx) = mpsc::sync_channel(1);
+    let ledger_bg = ledger.clone();
+    thread::spawn(move || {
+        let result = run_turn_on_admit(ledger_bg, &req, |turn| {
+            let _ = tx.send(Ok(turn.clone()));
+        });
+        if let Err(err) = result {
+            let _ = tx.try_send(Err(err.to_string()));
+        }
+    });
+    match rx.recv_timeout(Duration::from_secs(30)) {
+        Ok(Ok(turn)) => Ok(turn_result(&turn)),
+        Ok(Err(err)) => Err(err),
+        Err(_) => Err("turn/start did not admit a turn".to_string()),
+    }
+}
+
+fn turn_interrupt(params: &Value, home: &Path) -> Result<Value, String> {
+    reject_unenforceable_extras(params)?;
+    let thread_id = params
+        .get("threadId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "threadId required".to_string())?;
+    let turn_id = params
+        .get("turnId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "turnId required".to_string())?;
+    let ledger = open_ledger(Some(home))?;
+    let turn = ledger.read_turn(turn_id).map_err(|e| e.to_string())?;
+    if turn.thread_id != thread_id {
+        return Err("turn does not belong to thread".to_string());
+    }
+    Ok(turn_result(&cancel_turn(&ledger, turn_id)?))
+}
+
+fn prompt_from_input(input: &Value) -> Result<String, String> {
+    let arr = input
+        .as_array()
+        .ok_or_else(|| "input required".to_string())?;
+    if arr.is_empty() {
+        return Err("input required".to_string());
+    }
+    let mut parts = Vec::new();
+    for el in arr {
+        let ty = el.get("type").and_then(Value::as_str).unwrap_or("");
+        if ty != "text" {
+            return Err(format!("unsupported input type {ty}"));
+        }
+        let text = el
+            .get("text")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "text required".to_string())?;
+        parts.push(text.to_string());
+    }
+    Ok(parts.join("\n"))
+}
+
+fn turns_for_thread(ledger: &Ledger, thread_id: &str) -> Result<Vec<Value>, String> {
+    let turns = ledger.list_turns(None).map_err(|e| e.to_string())?;
+    Ok(turns
+        .into_iter()
+        .filter(|turn| turn.thread_id == thread_id)
+        .map(|turn| {
+            json!({
+                "id": turn.id,
+                "items": items_wire(&turn),
+                "status": turn.status.as_str(),
+            })
+        })
+        .collect())
+}
+
+fn items_wire(turn: &Turn) -> Vec<Value> {
+    turn.items
+        .iter()
+        .map(|item| {
+            json!({
+                "id": item.id,
+                "type": item.item_type,
+                "text": item.text,
+                "status": item.status,
+            })
+        })
+        .collect()
+}
+
+fn turn_result(turn: &Turn) -> Value {
+    json!({
+        "turn": {
+            "id": turn.id,
+            "items": items_wire(turn),
+            "status": turn.status.as_str(),
+        }
+    })
 }
 
 fn initialize_result() -> Value {
@@ -573,6 +834,11 @@ mod tests {
         assert!(parse_args(&["--home", "/tmp"]).is_err());
     }
 
+    fn rpc(msg: &Value) -> Option<Value> {
+        let home = tempfile::tempdir().expect("home");
+        handle_rpc(msg, home.path())
+    }
+
     #[test]
     fn initialize_is_honest_and_omits_jsonrpc() {
         let req = json!({
@@ -583,7 +849,7 @@ mod tests {
                 "capabilities": {"optOutNotificationMethods": []}
             }
         });
-        let reply = handle_rpc(&req).expect("reply");
+        let reply = rpc(&req).expect("reply");
         assert!(reply.get("jsonrpc").is_none());
         assert_eq!(reply["id"], 1);
         assert_eq!(reply["result"]["userAgent"], USER_AGENT);
@@ -596,23 +862,22 @@ mod tests {
     #[test]
     fn capabilities_ccas_is_method_not_found() {
         let req = json!({"id": 2, "method": "capabilities.ccas", "params": {}});
-        let reply = handle_rpc(&req).expect("reply");
+        let reply = rpc(&req).expect("reply");
         assert_eq!(reply["error"]["code"], METHOD_NOT_FOUND);
         let nested = json!({
             "id": 3,
             "method": "initialize",
             "params": {"capabilities": {"ccas": true}}
         });
-        let reply = handle_rpc(&nested).expect("reply");
+        let reply = rpc(&nested).expect("reply");
         assert_eq!(reply["error"]["code"], METHOD_NOT_FOUND);
     }
 
     #[test]
     fn account_and_models_are_grok() {
-        let account =
-            handle_rpc(&json!({"id": 4, "method": "account/read", "params": {}})).unwrap();
+        let account = rpc(&json!({"id": 4, "method": "account/read", "params": {}})).unwrap();
         assert_eq!(account["result"]["requiresOpenaiAuth"], false);
-        let models = handle_rpc(&json!({"id": 5, "method": "model/list", "params": {}})).unwrap();
+        let models = rpc(&json!({"id": 5, "method": "model/list", "params": {}})).unwrap();
         assert_eq!(models["result"]["data"][0]["model"], "grok");
         assert_eq!(models["result"]["data"][0]["isDefault"], true);
         assert!(models["result"]["nextCursor"].is_null());
@@ -620,6 +885,226 @@ mod tests {
 
     #[test]
     fn initialized_notification_has_no_reply() {
-        assert!(handle_rpc(&json!({"method": "initialized", "params": {}})).is_none());
+        assert!(rpc(&json!({"method": "initialized", "params": {}})).is_none());
+    }
+
+    #[test]
+    fn thread_start_omitted_defaults_are_untrusted_readonly() {
+        let home = tempfile::tempdir().expect("home");
+        let cwd = tempfile::tempdir().expect("cwd");
+        let reply = handle_rpc(
+            &json!({
+                "id": 10,
+                "method": "thread/start",
+                "params": {"cwd": cwd.path().to_str().unwrap()}
+            }),
+            home.path(),
+        )
+        .expect("reply");
+        let id = reply["result"]["thread"]["id"].as_str().expect("id");
+        let ledger = samchi_core::ledger::Ledger::open(home.path()).unwrap();
+        let stored = ledger.read_thread(id).unwrap();
+        assert_eq!(
+            stored.sandbox,
+            samchi_core::source_wire::ThreadSandbox::ReadOnly
+        );
+        assert_eq!(
+            stored.approval_policy,
+            samchi_core::source_wire::ApprovalPolicy::Untrusted
+        );
+        assert!(reply["result"]["thread"]["turns"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn thread_fork_is_recognized_and_fail_closed() {
+        let reply = rpc(&json!({
+            "id": 11,
+            "method": "thread/fork",
+            "params": {"threadId": "th_x"}
+        }))
+        .unwrap();
+        assert_eq!(reply["error"]["code"], METHOD_NOT_FOUND);
+        assert_eq!(reply["error"]["message"], "thread/fork");
+    }
+
+    #[test]
+    fn extra_spawn_fields_fail_closed() {
+        let home = tempfile::tempdir().expect("home");
+        let cwd = tempfile::tempdir().expect("cwd");
+        for field in UNENFORCEABLE_EXTRA_FIELD_NAMES {
+            let mut params = json!({"cwd": cwd.path().to_str().unwrap()});
+            params[*field] = json!(true);
+            let reply = handle_rpc(
+                &json!({"id": 12, "method": "thread/start", "params": params}),
+                home.path(),
+            )
+            .unwrap();
+            assert_eq!(reply["error"]["code"], METHOD_NOT_FOUND, "{field}");
+            assert!(
+                reply["error"]["message"].as_str().unwrap().contains(field),
+                "{reply}"
+            );
+        }
+        let nested = handle_rpc(
+            &json!({
+                "id": 13,
+                "method": "turn/start",
+                "params": {
+                    "threadId": "th_missing",
+                    "input": [{"type": "text", "text": "x"}],
+                    "sandboxPolicy": {
+                        "type": "workspaceWrite",
+                        "writableRoots": ["/tmp"]
+                    }
+                }
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(
+            nested["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("writableRoots"),
+            "{nested}"
+        );
+        let interrupt = handle_rpc(
+            &json!({
+                "id": 17,
+                "method": "turn/interrupt",
+                "params": {
+                    "threadId": "th_missing",
+                    "turnId": "tu_missing",
+                    "writableRoots": ["/tmp"]
+                }
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(
+            interrupt["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("writableRoots"),
+            "{interrupt}"
+        );
+    }
+
+    #[test]
+    fn thread_resume_reads_without_mutating() {
+        let home = tempfile::tempdir().expect("home");
+        let cwd = tempfile::tempdir().expect("cwd");
+        let started = handle_rpc(
+            &json!({
+                "id": 14,
+                "method": "thread/start",
+                "params": {
+                    "cwd": cwd.path().to_str().unwrap(),
+                    "sandbox": "workspace-write",
+                    "approvalPolicy": "never"
+                }
+            }),
+            home.path(),
+        )
+        .unwrap();
+        let id = started["result"]["thread"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let other = tempfile::tempdir().expect("other-cwd");
+        let resumed = handle_rpc(
+            &json!({
+                "id": 15,
+                "method": "thread/resume",
+                "params": {
+                    "threadId": id,
+                    "cwd": other.path().to_str().unwrap()
+                }
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert_eq!(resumed["result"]["thread"]["id"], id);
+        let ledger = samchi_core::ledger::Ledger::open(home.path()).unwrap();
+        let stored = ledger.read_thread(&id).unwrap();
+        assert_eq!(stored.cwd, cwd.path().display().to_string());
+        assert_eq!(
+            stored.sandbox,
+            samchi_core::source_wire::ThreadSandbox::WorkspaceWrite
+        );
+        let read = handle_rpc(
+            &json!({
+                "id": 16,
+                "method": "thread/read",
+                "params": {"threadId": id, "includeTurns": true}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert_eq!(read["result"]["thread"]["id"], id);
+        assert!(read["result"]["thread"]["turns"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        let compact = handle_rpc(
+            &json!({
+                "id": 18,
+                "method": "thread/read",
+                "params": {"threadId": id, "includeTurns": false}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(compact["result"]["thread"]["turns"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        let extras = handle_rpc(
+            &json!({
+                "id": 19,
+                "method": "thread/resume",
+                "params": {"threadId": id, "writableRoots": ["/tmp"]}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(
+            extras["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("writableRoots"),
+            "{extras}"
+        );
+        let turn = ledger
+            .admit_turn(&samchi_core::ledger::NewTurn {
+                thread_id: id.clone(),
+                input: vec![samchi_core::source_wire::UserInput {
+                    kind: "text".to_string(),
+                    text: "x".to_string(),
+                }],
+                model: "grok".to_string(),
+                effort: String::new(),
+                client_request_id: None,
+            })
+            .unwrap();
+        let mismatch = handle_rpc(
+            &json!({
+                "id": 20,
+                "method": "turn/interrupt",
+                "params": {"threadId": "th_other", "turnId": turn.id}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(
+            mismatch["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("does not belong"),
+            "{mismatch}"
+        );
     }
 }

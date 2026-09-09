@@ -50,7 +50,9 @@ passes `sandbox: read-only` on spawn; if Grok cannot enforce it, spawn fails
 
 App-server omitted-field defaults (EPIC-005) stay on the Dolgorae/CCAS wire
 (`sandbox` omitted → `read-only`, `approvalPolicy` omitted → `untrusted`).
-Those are a different parent.
+Those are a different parent. Socket `thread/start` + `turn/start` still
+write the same home ledger as MCP spawn; they do not inherit MCP spawn
+defaults.
 
 ## Tool surface
 

@@ -97,6 +97,7 @@ fn cmd_start(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u
         command: acp_command(),
         client_request_id: None,
         follow_up_thread_id: None,
+        reuse_thread_id: None,
     };
     let printed = std::sync::Mutex::new(false);
     let result = run_turn_on_admit(ledger, &req, |turn| {
@@ -242,6 +243,7 @@ fn cmd_followup(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -
         command: acp_command(),
         client_request_id: None,
         follow_up_thread_id: Some(thread.id),
+        reuse_thread_id: None,
     };
     let printed = std::sync::Mutex::new(false);
     let result = run_turn_on_admit(Arc::new(ledger), &req, |turn| {

@@ -3,7 +3,9 @@
 use crate::ops::{
     acp_command, bounded_turn_json, cancel_turn, open_home, open_ledger, turn_json, MAX_WAIT_MS,
 };
-use samchi_adapter_grok::{run_turn_on_admit, ExtraSpawnFields, TurnRequest};
+use samchi_adapter_grok::{
+    run_turn_on_admit, ExtraSpawnFields, TurnRequest, UNENFORCEABLE_EXTRA_FIELD_NAMES,
+};
 use samchi_core::source_wire::{
     parse_approval_decision, parse_approval_policy, parse_thread_sandbox, ApprovalPolicy,
     ThreadSandbox,
@@ -228,12 +230,10 @@ fn spawn(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
         Some(v) => parse_thread_sandbox(v).map_err(|e| e.to_string())?,
         None => ThreadSandbox::WorkspaceWrite,
     };
-    if args.get("writableRoots").is_some()
-        || args.get("networkAccess").is_some()
-        || args.get("excludeSlashTmp").is_some()
-        || args.get("excludeTmpdirEnvVar").is_some()
-    {
-        return Err("unenforceable extra spawn field".to_string());
+    for field in UNENFORCEABLE_EXTRA_FIELD_NAMES {
+        if args.get(*field).is_some() {
+            return Err(format!("unenforceable extra spawn field {field}"));
+        }
     }
     let home_arg = args
         .get("home")
@@ -263,6 +263,7 @@ fn spawn(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
         command: acp_command(),
         client_request_id,
         follow_up_thread_id: None,
+        reuse_thread_id: None,
     };
     let (tx, rx) = mpsc::sync_channel(1);
     let ledger_bg = ledger.clone();
@@ -376,6 +377,7 @@ fn followup(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
         command: acp_command(),
         client_request_id: None,
         follow_up_thread_id: Some(thread_id),
+        reuse_thread_id: None,
     };
     let (tx, rx) = mpsc::sync_channel(1);
     let ledger_bg = ledger.clone();

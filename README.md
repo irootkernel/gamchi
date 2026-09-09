@@ -56,4 +56,7 @@ followup, respond) are implemented. Host packaging lives in
 [docs/ops](docs/ops/). `samchi-for-grok app-server --listen unix://<absolute-path>`
 binds a Unix socket, upgrades HTTP/1.1 GET `/` to WebSocket, and answers
 honest `initialize` / `initialized` / `account/read` / Grok `model/list`.
-Occupied paths fail closed. Thread/turn methods are TASK-017.
+Occupied paths fail closed. `thread/start`, `thread/resume`, `thread/read`,
+`turn/start`, and `turn/interrupt` use the same home ledger as MCP spawn.
+Omitted socket sandbox and approvalPolicy stay `read-only` / `untrusted`.
+`thread/fork` is recognized and fail-closed.
