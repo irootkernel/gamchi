@@ -16,3 +16,9 @@ Future candidates (not lifecycle):
 - Add a deterministic test for the post-`set_child_pid` terminal-abort
   branch (EPIC-004 confirmation Low F003). The immediate-cancel MCP
   test can miss that branch.
+- Buffer `session/load` replay and reconcile it against the ledger by
+  stable ACP ids, or record discard as v1 policy in
+  [acp-item-mapping.md](../specs/acp-item-mapping.md) (EPIC-004
+  validation Low F004). Re-enter if a consumer needs load-replay
+  history merged without duplicating items. TASK-012 acceptance still
+  holds: replay is history, not new items or approvals.
