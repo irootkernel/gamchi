@@ -245,6 +245,10 @@ fn connect_upgraded(sock: &Path) -> UnixStream {
     stream
 }
 
+fn read_json(stream: &mut UnixStream) -> serde_json::Value {
+    serde_json::from_str(&read_server_text(stream)).unwrap()
+}
+
 fn rpc_call(
     stream: &mut UnixStream,
     id: u64,
@@ -255,7 +259,12 @@ fn rpc_call(
     stream
         .write_all(&client_text_frame(req.to_string().as_bytes()))
         .unwrap();
-    serde_json::from_str(&read_server_text(stream)).unwrap()
+    loop {
+        let reply = read_json(stream);
+        if reply.get("id").is_some() && reply.get("method").is_none() {
+            return reply;
+        }
+    }
 }
 
 fn mcp_spawn(home: &Path, cwd: &Path, prompt: &str) -> serde_json::Value {
@@ -461,5 +470,223 @@ fn one_in_progress_turn_per_thread_and_interrupt() {
         read["result"]["thread"]["turns"][0]["status"],
         "interrupted"
     );
+    stop(&mut child, &sock);
+}
+
+fn handshake(stream: &mut UnixStream) {
+    let _ = rpc_call(
+        stream,
+        1,
+        "initialize",
+        serde_json::json!({
+            "clientInfo": {"name": "shaped", "version": "0"},
+            "capabilities": {"optOutNotificationMethods": []}
+        }),
+    );
+}
+
+#[test]
+fn socket_emits_item_and_turn_notifications() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen(&url, Some(home.path()));
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    handshake(&mut stream);
+    let started = rpc_call(
+        &mut stream,
+        2,
+        "thread/start",
+        serde_json::json!({"cwd": cwd.path().to_str().unwrap()}),
+    );
+    let thread_id = started["result"]["thread"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let thread_started = read_json(&mut stream);
+    assert_eq!(thread_started["method"], "thread/started");
+    assert_eq!(thread_started["params"]["thread"]["id"], thread_id);
+    let _ = rpc_call(
+        &mut stream,
+        3,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "ping"}]
+        }),
+    );
+    let mut methods = Vec::new();
+    let mut completed = false;
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while Instant::now() < deadline {
+        let msg = read_json(&mut stream);
+        if let Some(method) = msg.get("method").and_then(|m| m.as_str()) {
+            methods.push(method.to_string());
+            if method == "turn/completed" {
+                assert_eq!(msg["params"]["threadId"], thread_id);
+                assert_eq!(msg["params"]["turn"]["status"], "completed");
+                assert!(msg.get("jsonrpc").is_none());
+                completed = true;
+                break;
+            }
+        }
+    }
+    assert!(completed, "expected turn/completed");
+    assert!(methods.iter().any(|m| m == "item/started"), "{methods:?}");
+    assert!(methods.iter().any(|m| m == "item/completed"), "{methods:?}");
+    assert!(methods.iter().any(|m| m == "turn/completed"), "{methods:?}");
+    assert!(
+        methods.iter().all(|m| m != "item/fileChange/patchUpdated"),
+        "{methods:?}"
+    );
+    stop(&mut child, &sock);
+}
+
+#[test]
+fn socket_approval_is_server_request_not_grok_respond() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen_with(
+        &url,
+        Some(home.path()),
+        &[("SAMCHI_FOR_GROK_FAKE_ASK_PERMISSION", "1")],
+    );
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    handshake(&mut stream);
+    let started = rpc_call(
+        &mut stream,
+        2,
+        "thread/start",
+        serde_json::json!({
+            "cwd": cwd.path().to_str().unwrap(),
+            "approvalPolicy": "untrusted",
+            "sandbox": "workspace-write"
+        }),
+    );
+    let thread_id = started["result"]["thread"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let _ = rpc_call(
+        &mut stream,
+        3,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "edit"}]
+        }),
+    );
+    let mut saw_approval = false;
+    let mut completed = false;
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while Instant::now() < deadline {
+        let msg = read_json(&mut stream);
+        let method = msg.get("method").and_then(|m| m.as_str()).unwrap_or("");
+        if method == "item/commandExecution/requestApproval"
+            || method == "item/fileChange/requestApproval"
+        {
+            assert!(msg.get("id").is_some(), "{msg}");
+            assert!(msg.get("jsonrpc").is_none(), "{msg}");
+            assert_eq!(msg["params"]["threadId"], thread_id);
+            let item_id = msg["params"]["itemId"].as_str().expect("itemId");
+            assert!(!item_id.is_empty(), "{msg}");
+            assert!(msg["params"]["startedAtMs"].as_u64().is_some());
+            let reply = serde_json::json!({
+                "id": msg["id"],
+                "result": {"decision": "accept"}
+            });
+            stream
+                .write_all(&client_text_frame(reply.to_string().as_bytes()))
+                .unwrap();
+            saw_approval = true;
+        }
+        if method == "turn/completed" {
+            assert_eq!(msg["params"]["turn"]["status"], "completed");
+            completed = true;
+            break;
+        }
+    }
+    assert!(saw_approval, "expected socket requestApproval");
+    assert!(completed, "expected turn/completed after accept");
+    stop(&mut child, &sock);
+}
+
+#[test]
+fn interrupt_during_approval_emits_turn_completed() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen_with(
+        &url,
+        Some(home.path()),
+        &[("SAMCHI_FOR_GROK_FAKE_ASK_PERMISSION", "1")],
+    );
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    handshake(&mut stream);
+    let started = rpc_call(
+        &mut stream,
+        2,
+        "thread/start",
+        serde_json::json!({
+            "cwd": cwd.path().to_str().unwrap(),
+            "approvalPolicy": "untrusted",
+            "sandbox": "workspace-write"
+        }),
+    );
+    let thread_id = started["result"]["thread"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let turn = rpc_call(
+        &mut stream,
+        3,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "edit"}]
+        }),
+    );
+    let turn_id = turn["result"]["turn"]["id"].as_str().unwrap().to_string();
+    let mut interrupted = false;
+    let mut sent_interrupt = false;
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while Instant::now() < deadline {
+        let msg = read_json(&mut stream);
+        let method = msg.get("method").and_then(|m| m.as_str()).unwrap_or("");
+        if !sent_interrupt
+            && (method == "item/commandExecution/requestApproval"
+                || method == "item/fileChange/requestApproval")
+        {
+            let bad = serde_json::json!({"id": msg["id"], "result": {}});
+            stream
+                .write_all(&client_text_frame(bad.to_string().as_bytes()))
+                .unwrap();
+            let req = serde_json::json!({
+                "id": 4,
+                "method": "turn/interrupt",
+                "params": {"threadId": thread_id, "turnId": turn_id}
+            });
+            stream
+                .write_all(&client_text_frame(req.to_string().as_bytes()))
+                .unwrap();
+            sent_interrupt = true;
+        }
+        if method == "turn/completed" {
+            assert_eq!(msg["params"]["turn"]["status"], "interrupted");
+            interrupted = true;
+            break;
+        }
+    }
+    assert!(interrupted, "expected turn/completed after interrupt");
     stop(&mut child, &sock);
 }

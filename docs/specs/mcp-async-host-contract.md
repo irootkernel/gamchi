@@ -52,7 +52,10 @@ App-server omitted-field defaults (EPIC-005) stay on the Dolgorae/CCAS wire
 (`sandbox` omitted → `read-only`, `approvalPolicy` omitted → `untrusted`).
 Those are a different parent. Socket `thread/start` + `turn/start` still
 write the same home ledger as MCP spawn; they do not inherit MCP spawn
-defaults.
+defaults. Socket approvals are subset server requests
+(`item/commandExecution/requestApproval`, `item/fileChange/requestApproval`)
+on that same `pending_approval` / respond ledger. They are not MCP
+`grok_respond`.
 
 ## Tool surface
 

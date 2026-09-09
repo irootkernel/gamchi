@@ -9,7 +9,9 @@ table; it does not invent another.
 
 ## Emit allowlist (MCP worker)
 
-These are the only public items the adapter emits in v1:
+These are the only public items the adapter emits in v1. The app-server
+socket projects the same items as `item/started` / `item/completed`
+notifications; it does not add MCP tool names or a second item store.
 
 | ItemType | ACP source |
 | --- | --- |

@@ -106,7 +106,12 @@ occupied path. TASK-016 publishes honest JSON-RPC `initialize` /
 `thread/start`, `thread/resume`, `thread/read`, `turn/start`, and
 `turn/interrupt` on the same worker ledger as MCP spawn. Omitted socket
 sandbox and approvalPolicy stay `read-only` and `untrusted`. `thread/fork`
-is recognized and fail-closed.
+is recognized and fail-closed. TASK-018 emits `item/started`, `item/completed`, `turn/completed`, and
+`thread/started` on that socket. `item/fileChange/patchUpdated` is omitted
+until a turn item carries structured FileUpdateChange rows. Approvals are
+`item/commandExecution/requestApproval` and `item/fileChange/requestApproval`
+against the existing pending-approval ledger, not MCP tool names.
+`optOutNotificationMethods` stays `[]`.
 
 ## v1 scope
 

@@ -1,5 +1,5 @@
 //! Unix-domain app-server listen, HTTP/1.1 WebSocket upgrade, handshake,
-//! and TASK-017 thread/turn methods on the existing worker ledger.
+//! thread/turn methods, and TASK-018 notifications plus approval requests.
 
 use crate::ops::{acp_command, cancel_turn, open_home, open_ledger};
 use base64::engine::general_purpose::STANDARD;
@@ -9,18 +9,22 @@ use samchi_adapter_grok::{
 };
 use samchi_core::ledger::{Ledger, NewThread};
 use samchi_core::source_wire::{
-    parse_approval_policy, parse_thread_sandbox, parse_turn_sandbox_type, Turn,
-    APP_SERVER_DEFAULT_APPROVAL_POLICY, APP_SERVER_DEFAULT_THREAD_SANDBOX, MAX_HTTP_UPGRADE_BYTES,
-    MAX_WEBSOCKET_FRAME_BYTES,
+    parse_approval_decision, parse_approval_policy, parse_thread_sandbox, parse_turn_sandbox_type,
+    Item, Turn, APP_SERVER_DEFAULT_APPROVAL_POLICY, APP_SERVER_DEFAULT_THREAD_SANDBOX,
+    ITEM_COMMAND_EXECUTION, ITEM_FILE_CHANGE, MAX_HTTP_UPGRADE_BYTES, MAX_WEBSOCKET_FRAME_BYTES,
+    NOTIFY_ITEM_COMPLETED, NOTIFY_ITEM_STARTED, NOTIFY_THREAD_STARTED, NOTIFY_TURN_COMPLETED,
+    REQUEST_COMMAND_APPROVAL, REQUEST_FILE_CHANGE_APPROVAL,
 };
 use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
+use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Arc};
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Honest initialize identity. Kept out of `samchi-core`.
 pub(crate) const USER_AGENT: &str = "samchi-for-grok/app-server-v1";
@@ -301,7 +305,19 @@ fn websocket_accept(key: &str) -> String {
     STANDARD.encode(hasher.finalize())
 }
 
+#[derive(Clone)]
+struct ConnIo {
+    writer: Arc<Mutex<UnixStream>>,
+    pending: Arc<Mutex<HashMap<String, mpsc::SyncSender<Value>>>>,
+    next_id: Arc<AtomicI64>,
+}
+
 fn rpc_loop(stream: &mut UnixStream, home: &Path) -> io::Result<()> {
+    let io = ConnIo {
+        writer: Arc::new(Mutex::new(stream.try_clone()?)),
+        pending: Arc::new(Mutex::new(HashMap::new())),
+        next_id: Arc::new(AtomicI64::new(1000)),
+    };
     loop {
         match read_ws_text(stream) {
             Ok(None) => return Ok(()),
@@ -309,13 +325,238 @@ fn rpc_loop(stream: &mut UnixStream, home: &Path) -> io::Result<()> {
                 let Ok(msg) = serde_json::from_slice::<Value>(&bytes) else {
                     continue;
                 };
+                if msg.get("method").and_then(Value::as_str).is_none() {
+                    deliver_pending(&io, &msg);
+                    continue;
+                }
                 if let Some(reply) = handle_rpc(&msg, home) {
-                    write_ws_text(stream, &serde_json::to_vec(&reply)?)?;
+                    write_locked(&io.writer, &serde_json::to_vec(&reply)?)?;
+                    after_rpc(&msg, &reply, home, &io);
                 }
             }
             Err(_) => return Ok(()),
         }
     }
+}
+
+fn write_locked(writer: &Mutex<UnixStream>, payload: &[u8]) -> io::Result<()> {
+    let mut stream = writer.lock().unwrap_or_else(|e| e.into_inner());
+    write_ws_text(&mut stream, payload)
+}
+
+fn deliver_pending(io: &ConnIo, msg: &Value) {
+    let Some(id) = msg.get("id") else {
+        return;
+    };
+    let key = id.to_string();
+    if let Some(tx) = io
+        .pending
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .remove(&key)
+    {
+        let _ = tx.send(msg.clone());
+    }
+}
+
+fn after_rpc(req: &Value, reply: &Value, home: &Path, io: &ConnIo) {
+    if reply.get("error").is_some() {
+        return;
+    }
+    let method = req.get("method").and_then(Value::as_str).unwrap_or("");
+    match method {
+        "thread/start" => {
+            if let Some(id) = reply.pointer("/result/thread/id").and_then(Value::as_str) {
+                let note = json!({
+                    "method": NOTIFY_THREAD_STARTED,
+                    "params": {"thread": {"id": id}}
+                });
+                let _ = write_locked(&io.writer, &serde_json::to_vec(&note).unwrap_or_default());
+            }
+        }
+        "turn/start" => {
+            let Some(turn_id) = reply
+                .pointer("/result/turn/id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+            else {
+                return;
+            };
+            let Some(thread_id) = req
+                .pointer("/params/threadId")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+            else {
+                return;
+            };
+            let home = home.to_path_buf();
+            let io = io.clone();
+            thread::spawn(move || {
+                let _ = watch_turn(&home, &thread_id, &turn_id, &io);
+            });
+        }
+        _ => {}
+    }
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+struct PendingApproval {
+    request_id: String,
+    rpc_id: String,
+    rx: mpsc::Receiver<Value>,
+}
+
+fn watch_turn(home: &Path, thread_id: &str, turn_id: &str, io: &ConnIo) -> Result<(), String> {
+    let ledger = open_ledger(Some(home))?;
+    let mut started = HashSet::new();
+    let mut completed = HashSet::new();
+    let mut last_request = String::new();
+    let mut pending: Option<PendingApproval> = None;
+    loop {
+        let turn = match ledger.observe(turn_id) {
+            Ok(turn) => turn,
+            Err(_) => {
+                thread::sleep(Duration::from_millis(20));
+                continue;
+            }
+        };
+        let _ = emit_item_notifications(&turn, thread_id, io, &mut started, &mut completed);
+        if turn.status.is_terminal() {
+            let _ = emit_item_notifications(&turn, thread_id, io, &mut started, &mut completed);
+            let note = json!({
+                "method": NOTIFY_TURN_COMPLETED,
+                "params": {
+                    "threadId": thread_id,
+                    "turn": {
+                        "id": turn.id,
+                        "items": items_wire(&turn),
+                        "status": turn.status.as_str(),
+                    }
+                }
+            });
+            write_locked(&io.writer, &serde_json::to_vec(&note).unwrap_or_default())
+                .map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+        if let Some(wait) = pending.take() {
+            match wait.rx.try_recv() {
+                Ok(reply) => {
+                    if let Some(decision) = reply
+                        .get("result")
+                        .and_then(|result| result.get("decision"))
+                        .and_then(Value::as_str)
+                    {
+                        if let Ok(decision) = parse_approval_decision(decision) {
+                            let _ = ledger.respond(&wait.request_id, decision);
+                        }
+                    }
+                }
+                Err(mpsc::TryRecvError::Empty) => pending = Some(wait),
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    io.pending
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .remove(&wait.rpc_id);
+                }
+            }
+        }
+        if turn.pending_approval() && pending.is_none() && turn.pending_request_id != last_request {
+            if let Some(wait) = start_socket_approval(&turn, thread_id, io) {
+                last_request = wait.request_id.clone();
+                pending = Some(wait);
+            }
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+fn emit_item_notifications(
+    turn: &Turn,
+    thread_id: &str,
+    io: &ConnIo,
+    started: &mut HashSet<String>,
+    completed: &mut HashSet<String>,
+) -> Result<(), String> {
+    let now = now_ms();
+    for item in &turn.items {
+        if started.insert(item.id.clone()) {
+            let note = json!({
+                "method": NOTIFY_ITEM_STARTED,
+                "params": {
+                    "threadId": thread_id,
+                    "turnId": turn.id,
+                    "startedAtMs": now,
+                    "item": item_obj(item),
+                }
+            });
+            write_locked(&io.writer, &serde_json::to_vec(&note).unwrap_or_default())
+                .map_err(|e| e.to_string())?;
+        }
+        let terminal = item.status == "completed" || item.status == "failed";
+        if terminal && completed.insert(item.id.clone()) {
+            let note = json!({
+                "method": NOTIFY_ITEM_COMPLETED,
+                "params": {
+                    "threadId": thread_id,
+                    "turnId": turn.id,
+                    "completedAtMs": now,
+                    "item": item_obj(item),
+                }
+            });
+            write_locked(&io.writer, &serde_json::to_vec(&note).unwrap_or_default())
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+fn start_socket_approval(turn: &Turn, thread_id: &str, io: &ConnIo) -> Option<PendingApproval> {
+    let item = turn.items.iter().rev().find(|item| {
+        item.item_type == ITEM_COMMAND_EXECUTION || item.item_type == ITEM_FILE_CHANGE
+    });
+    let method = match item.map(|item| item.item_type.as_str()) {
+        Some(ITEM_FILE_CHANGE) => REQUEST_FILE_CHANGE_APPROVAL,
+        _ => REQUEST_COMMAND_APPROVAL,
+    };
+    let item_id = item
+        .map(|item| item.id.clone())
+        .or_else(|| turn.items.last().map(|item| item.id.clone()))
+        .unwrap_or_else(|| turn.id.clone());
+    let id = io.next_id.fetch_add(1, Ordering::Relaxed);
+    let rpc_id = id.to_string();
+    let (tx, rx) = mpsc::sync_channel(1);
+    io.pending
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(rpc_id.clone(), tx);
+    let req = json!({
+        "id": id,
+        "method": method,
+        "params": {
+            "itemId": item_id,
+            "startedAtMs": now_ms(),
+            "threadId": thread_id,
+            "turnId": turn.id,
+        }
+    });
+    if write_locked(&io.writer, &serde_json::to_vec(&req).unwrap_or_default()).is_err() {
+        io.pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&rpc_id);
+        return None;
+    }
+    Some(PendingApproval {
+        request_id: turn.pending_request_id.clone(),
+        rpc_id,
+        rx,
+    })
 }
 
 fn handle_rpc(msg: &Value, home: &Path) -> Option<Value> {
@@ -331,7 +572,16 @@ fn handle_rpc(msg: &Value, home: &Path) -> Option<Value> {
         return Some(rpc_error(id, METHOD_NOT_FOUND, "capabilities.ccas"));
     }
     match method {
-        "initialize" => Some(json!({"id": id, "result": initialize_result()})),
+        "initialize" => {
+            if opt_out_is_nonempty(&params) {
+                return Some(rpc_error(
+                    id,
+                    METHOD_NOT_FOUND,
+                    "optOutNotificationMethods must be empty",
+                ));
+            }
+            Some(json!({"id": id, "result": initialize_result()}))
+        }
         "account/read" => Some(json!({"id": id, "result": json!({"requiresOpenaiAuth": false})})),
         "model/list" => Some(json!({"id": id, "result": model_list_result()})),
         "thread/fork" => Some(rpc_error(id, METHOD_NOT_FOUND, "thread/fork")),
@@ -349,6 +599,17 @@ fn rpc_result(id: Value, result: Result<Value, String>) -> Value {
         Ok(result) => json!({"id": id, "result": result}),
         Err(message) => rpc_error(id, METHOD_NOT_FOUND, &message),
     }
+}
+
+fn opt_out_is_nonempty(params: &Value) -> bool {
+    let top = params.get("optOutNotificationMethods");
+    let nested = params
+        .get("capabilities")
+        .and_then(|c| c.get("optOutNotificationMethods"));
+    [top, nested]
+        .into_iter()
+        .flatten()
+        .any(|v| v.as_array().map(|a| !a.is_empty()).unwrap_or(true))
 }
 
 fn reject_unenforceable_extras(v: &Value) -> Result<(), String> {
@@ -565,18 +826,17 @@ fn turns_for_thread(ledger: &Ledger, thread_id: &str) -> Result<Vec<Value>, Stri
         .collect())
 }
 
+fn item_obj(item: &Item) -> Value {
+    json!({
+        "id": item.id,
+        "type": item.item_type,
+        "text": item.text,
+        "status": item.status,
+    })
+}
+
 fn items_wire(turn: &Turn) -> Vec<Value> {
-    turn.items
-        .iter()
-        .map(|item| {
-            json!({
-                "id": item.id,
-                "type": item.item_type,
-                "text": item.text,
-                "status": item.status,
-            })
-        })
-        .collect()
+    turn.items.iter().map(item_obj).collect()
 }
 
 fn turn_result(turn: &Turn) -> Value {
@@ -886,6 +1146,31 @@ mod tests {
     #[test]
     fn initialized_notification_has_no_reply() {
         assert!(rpc(&json!({"method": "initialized", "params": {}})).is_none());
+    }
+
+    #[test]
+    fn opt_out_notification_methods_must_stay_empty() {
+        let ok = rpc(&json!({
+            "id": 6,
+            "method": "initialize",
+            "params": {"capabilities": {"optOutNotificationMethods": []}}
+        }))
+        .unwrap();
+        assert!(ok.get("result").is_some(), "{ok}");
+        let blocked = rpc(&json!({
+            "id": 7,
+            "method": "initialize",
+            "params": {"capabilities": {"optOutNotificationMethods": ["item/started"]}}
+        }))
+        .unwrap();
+        assert_eq!(blocked["error"]["code"], METHOD_NOT_FOUND);
+        assert!(
+            blocked["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("optOutNotificationMethods"),
+            "{blocked}"
+        );
     }
 
     #[test]

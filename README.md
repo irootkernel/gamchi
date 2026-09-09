@@ -59,4 +59,7 @@ honest `initialize` / `initialized` / `account/read` / Grok `model/list`.
 Occupied paths fail closed. `thread/start`, `thread/resume`, `thread/read`,
 `turn/start`, and `turn/interrupt` use the same home ledger as MCP spawn.
 Omitted socket sandbox and approvalPolicy stay `read-only` / `untrusted`.
-`thread/fork` is recognized and fail-closed.
+`thread/fork` is recognized and fail-closed. The socket emits `thread/started`, `item/started`, `item/completed`, and
+`turn/completed`. Approvals are subset server requests on the existing
+pending-approval ledger, not MCP `grok_respond`.
+`optOutNotificationMethods` stays empty.

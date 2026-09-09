@@ -73,3 +73,8 @@ TASK-017 thread/turn methods are offline on the same home: socket
 agent via `SAMCHI_FOR_GROK_ACP_PROGRAM`). Omitted socket fields stay
 `read-only` / `untrusted`. One inProgress turn per thread. `thread/fork`
 and extra subset fields fail closed. Live Grok is not required.
+TASK-018 socket notifications and approvals are offline: `thread/started`,
+`item/started`, `item/completed`, `turn/completed` on the fake ACP agent, and
+`item/commandExecution/requestApproval` / `item/fileChange/requestApproval`
+mapped to the existing pending-approval respond path. `optOutNotificationMethods`
+must stay empty. Live Grok is not required.
