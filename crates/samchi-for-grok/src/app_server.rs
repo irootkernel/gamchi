@@ -2,11 +2,12 @@
 //! thread/turn methods, TASK-018 notifications plus approval requests, and
 //! TASK-019 `grok/runtime/read`.
 
-use crate::ops::{acp_command, cancel_turn, open_home, open_ledger};
+use crate::ops::{acp_command, cancel_turn, open_home, open_ledger, optional_text_field};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use samchi_adapter_grok::{
-    run_turn_on_admit, ExtraSpawnFields, TurnRequest, UNENFORCEABLE_EXTRA_FIELD_NAMES,
+    load_home_defaults, resolve_first_turn, run_turn_on_admit, ExtraSpawnFields, TurnRequest,
+    UNENFORCEABLE_EXTRA_FIELD_NAMES,
 };
 use samchi_core::ledger::{Ledger, LedgerError, NewThread};
 use samchi_core::source_wire::{
@@ -656,11 +657,9 @@ fn thread_start(params: &Value, home: &Path) -> Result<Value, String> {
             path.display().to_string()
         }
     };
-    let model = params
-        .get("model")
-        .and_then(Value::as_str)
-        .unwrap_or("grok")
-        .to_string();
+    let model_raw = optional_text_field(params, "model")?;
+    let defaults = load_home_defaults(home).map_err(|e| e.to_string())?;
+    let (model, _) = resolve_first_turn(&model_raw, "", &defaults).map_err(|e| e.to_string())?;
     let sandbox = match params.get("sandbox").and_then(Value::as_str) {
         Some(v) => parse_thread_sandbox(v).map_err(|e| e.to_string())?,
         None => APP_SERVER_DEFAULT_THREAD_SANDBOX,
@@ -760,11 +759,8 @@ fn turn_start(params: &Value, home: &Path) -> Result<Value, String> {
         Some(v) => parse_approval_policy(v).map_err(|e| e.to_string())?,
         None => stored.approval_policy,
     };
-    let model = params
-        .get("model")
-        .and_then(Value::as_str)
-        .unwrap_or(&stored.model)
-        .to_string();
+    let model = optional_text_field(params, "model")?;
+    let effort = optional_text_field(params, "effort")?;
     let (follow_up_thread_id, reuse_thread_id) = if stored.acp_session_id.is_empty() {
         (None, Some(thread_id.clone()))
     } else {
@@ -777,7 +773,7 @@ fn turn_start(params: &Value, home: &Path) -> Result<Value, String> {
         sandbox,
         extra: ExtraSpawnFields::default(),
         model,
-        effort: String::new(),
+        effort,
         command: acp_command(),
         client_request_id: None,
         follow_up_thread_id,
@@ -892,7 +888,7 @@ fn grok_runtime_read(home: &Path) -> Value {
     })
 }
 
-fn model_list_result() -> Value {
+fn model_list_stub() -> Value {
     json!({
         "data": [{
             "model": "grok",
@@ -901,6 +897,20 @@ fn model_list_result() -> Value {
         }],
         "nextCursor": Value::Null
     })
+}
+
+/// Advertisement only. Listing failure is not a spawn gate.
+fn model_list_result() -> Value {
+    if let Ok(path) = std::env::var("SAMCHI_FOR_GROK_MODEL_LIST_FIXTURE") {
+        if let Ok(body) = std::fs::read_to_string(&path) {
+            if let Ok(parsed) = serde_json::from_str::<Value>(&body) {
+                if parsed.get("data").is_some() {
+                    return parsed;
+                }
+            }
+        }
+    }
+    model_list_stub()
 }
 
 fn rpc_error(id: Value, code: i64, message: &str) -> Value {
@@ -1177,6 +1187,41 @@ mod tests {
         assert_eq!(models["result"]["data"][0]["model"], "grok");
         assert_eq!(models["result"]["data"][0]["isDefault"], true);
         assert!(models["result"]["nextCursor"].is_null());
+    }
+
+    #[test]
+    fn omitted_thread_start_model_uses_cascade() {
+        let home = tempfile::tempdir().expect("home");
+        let cwd = tempfile::tempdir().expect("cwd");
+        let started = handle_rpc(
+            &json!({
+                "id": 1,
+                "method": "thread/start",
+                "params": {"cwd": cwd.path().display().to_string()}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        let id = started["result"]["thread"]["id"].as_str().unwrap();
+        let ledger = Ledger::open(home.path()).unwrap();
+        let stored = ledger.read_thread(id).unwrap();
+        assert_eq!(stored.model, "grok-4.6");
+        let blank = handle_rpc(
+            &json!({
+                "id": 2,
+                "method": "thread/start",
+                "params": {"cwd": cwd.path().display().to_string(), "model": "  "}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(
+            blank["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("INVALID_CONFIG"),
+            "{blank}"
+        );
     }
 
     #[test]

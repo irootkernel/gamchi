@@ -1053,3 +1053,93 @@ fn shaped_client_interrupt() {
     assert_eq!(fork["error"]["message"], "thread/fork");
     stop(&mut child, &sock);
 }
+
+#[test]
+fn model_list_fixture_and_turn_model_lock() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let fixture = home.path().join("models.json");
+    std::fs::write(
+        &fixture,
+        r#"{"data":[{"model":"grok-4.6","isDefault":true,"supportedReasoningEfforts":["high"]}],"nextCursor":null}"#,
+    )
+    .unwrap();
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen_with(
+        &url,
+        Some(home.path()),
+        &[(
+            "SAMCHI_FOR_GROK_MODEL_LIST_FIXTURE",
+            fixture.to_str().unwrap(),
+        )],
+    );
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    let _ = shaped_handshake(&mut stream);
+    notify(&mut stream, "initialized", serde_json::json!({}));
+    let models = rpc_call(
+        &mut stream,
+        2,
+        "model/list",
+        serde_json::json!({"cursor": serde_json::Value::Null, "limit": 100}),
+    );
+    assert_eq!(models["result"]["data"][0]["model"], "grok-4.6");
+    let started = rpc_call(
+        &mut stream,
+        3,
+        "thread/start",
+        serde_json::json!({"cwd": cwd.path().to_str().unwrap()}),
+    );
+    let thread_id = started["result"]["thread"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let _ = wait_method(&mut stream, "thread/started");
+    let first = rpc_call(
+        &mut stream,
+        4,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "one"}],
+            "effort": "low"
+        }),
+    );
+    assert_eq!(first["result"]["turn"]["status"], "inProgress");
+    let _ = wait_method(&mut stream, "turn/completed");
+    let mismatch = rpc_call(
+        &mut stream,
+        5,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "two"}],
+            "model": "other"
+        }),
+    );
+    assert!(
+        mismatch["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("INVALID_CONFIG"),
+        "{mismatch}"
+    );
+    let effort = rpc_call(
+        &mut stream,
+        6,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "three"}],
+            "effort": "high"
+        }),
+    );
+    assert_eq!(effort["result"]["turn"]["status"], "inProgress");
+    let _ = wait_method(&mut stream, "turn/completed");
+    let ledger = Ledger::open(home.path()).expect("ledger");
+    let stored = ledger.read_thread(&thread_id).unwrap();
+    assert_eq!(stored.model, "grok-4.6");
+    stop(&mut child, &sock);
+}

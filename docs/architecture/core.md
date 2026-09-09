@@ -109,10 +109,10 @@ Unix socket, upgrades HTTP/1.1 GET `/` to WebSocket, and fails closed on an
 occupied path. TASK-016 publishes honest JSON-RPC `initialize` /
 `initialized` / `account/read` / Grok `model/list` on that socket.
 `userAgent=samchi-for-grok/app-server-v1` stays out of core.
-`capabilities.ccas` is JSON-RPC `-32602`. TASK-023 records that
-`model/list` is advertisement only and does not gate spawn; TASK-026
-may list live Grok ids. The current stub `model: "grok"` row is not
-the final catalog. TASK-017 publishes
+`capabilities.ccas` is JSON-RPC `-32602`. TASK-026 may advertise live
+or fixture Grok ids on `model/list`; listing failure still returns the
+stub row and is not a spawn gate. Omitted `thread/start` model uses the
+MCP cascade. `turn/start` model change fails closed; effort may change. TASK-017 publishes
 `thread/start`, `thread/resume`, `thread/read`, `turn/start`, and
 `turn/interrupt` on the same worker ledger as MCP spawn. Omitted socket
 sandbox and approvalPolicy stay `read-only` and `untrusted`. `thread/fork`
