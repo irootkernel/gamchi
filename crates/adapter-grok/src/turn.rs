@@ -145,49 +145,40 @@ async fn run_turn_async(
 
     let defaults = load_home_defaults(ledger.home()).map_err(LaunchError::from)?;
     let start_head = git_head(&req.cwd);
-    let (thread, load_session_id, model, effort) = if let Some(thread_id) =
-        req.follow_up_thread_id.as_deref()
-    {
-        let thread = ledger.read_thread(thread_id)?;
-        if thread.acp_session_id.is_empty() {
-            return Err(AdapterError::Acp(
-                "follow-up requires a stored ACP session id".to_string(),
-            ));
-        }
-        let sid = thread.acp_session_id.clone();
-        let previous = previous_turn_effort(&ledger, &thread.id)?;
-        let (model, effort) =
-            resolve_follow_up(&req.model, &req.effort, &thread.model, &previous, &defaults)
-                .map_err(LaunchError::from)?;
-        (thread, Some(sid), model, effort)
-    } else if let Some(thread_id) = req.reuse_thread_id.as_deref() {
-        let thread = ledger.read_thread(thread_id)?;
-        let previous = previous_turn_effort(&ledger, &thread.id)?;
-        let (model, effort) = if previous.is_empty() {
-            let model_field = if req.model.is_empty() {
-                thread.model.as_str()
-            } else {
-                req.model.as_str()
-            };
-            resolve_first_turn(model_field, &req.effort, &defaults).map_err(LaunchError::from)?
+    let (thread, load_session_id, model, effort) =
+        if let Some(thread_id) = req.follow_up_thread_id.as_deref() {
+            let thread = ledger.read_thread(thread_id)?;
+            if thread.acp_session_id.is_empty() {
+                return Err(AdapterError::Acp(
+                    "follow-up requires a stored ACP session id".to_string(),
+                ));
+            }
+            let sid = thread.acp_session_id.clone();
+            let previous = previous_turn_effort(&ledger, &thread.id)?;
+            let (model, effort) =
+                resolve_follow_up(&req.model, &req.effort, &thread.model, &previous, &defaults)
+                    .map_err(LaunchError::from)?;
+            (thread, Some(sid), model, effort)
+        } else if let Some(thread_id) = req.reuse_thread_id.as_deref() {
+            let thread = ledger.read_thread(thread_id)?;
+            let previous = previous_turn_effort(&ledger, &thread.id)?;
+            let (model, effort) =
+                resolve_follow_up(&req.model, &req.effort, &thread.model, &previous, &defaults)
+                    .map_err(LaunchError::from)?;
+            (thread, None, model, effort)
         } else {
-            resolve_follow_up(&req.model, &req.effort, &thread.model, &previous, &defaults)
-                .map_err(LaunchError::from)?
+            let (model, effort) = resolve_first_turn(&req.model, &req.effort, &defaults)
+                .map_err(LaunchError::from)?;
+            let thread = ledger.create_thread(&NewThread {
+                cwd: req.cwd.display().to_string(),
+                model: model.clone(),
+                sandbox: req.sandbox,
+                approval_policy: req.approval,
+                developer_instructions: String::new(),
+                acp_session_id: String::new(),
+            })?;
+            (thread, None, model, effort)
         };
-        (thread, None, model, effort)
-    } else {
-        let (model, effort) =
-            resolve_first_turn(&req.model, &req.effort, &defaults).map_err(LaunchError::from)?;
-        let thread = ledger.create_thread(&NewThread {
-            cwd: req.cwd.display().to_string(),
-            model: model.clone(),
-            sandbox: req.sandbox,
-            approval_policy: req.approval,
-            developer_instructions: String::new(),
-            acp_session_id: String::new(),
-        })?;
-        (thread, None, model, effort)
-    };
 
     let plan = match &req.command {
         AgentCommand::Grok { program } => plan_launch(&LaunchRequest {

@@ -1097,9 +1097,26 @@ fn model_list_fixture_and_turn_model_lock() {
         .unwrap()
         .to_string();
     let _ = wait_method(&mut stream, "thread/started");
-    let first = rpc_call(
+    let first_mismatch = rpc_call(
         &mut stream,
         4,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "locked"}],
+            "model": "other"
+        }),
+    );
+    assert!(
+        first_mismatch["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("INVALID_CONFIG"),
+        "{first_mismatch}"
+    );
+    let first = rpc_call(
+        &mut stream,
+        5,
         "turn/start",
         serde_json::json!({
             "threadId": thread_id,
@@ -1111,7 +1128,7 @@ fn model_list_fixture_and_turn_model_lock() {
     let _ = wait_method(&mut stream, "turn/completed");
     let mismatch = rpc_call(
         &mut stream,
-        5,
+        6,
         "turn/start",
         serde_json::json!({
             "threadId": thread_id,
@@ -1128,7 +1145,7 @@ fn model_list_fixture_and_turn_model_lock() {
     );
     let effort = rpc_call(
         &mut stream,
-        6,
+        7,
         "turn/start",
         serde_json::json!({
             "threadId": thread_id,

@@ -201,6 +201,48 @@ fn reuse_thread_id_admits_session_new_on_existing_thread() {
 }
 
 #[test]
+fn reuse_thread_id_refuses_model_mismatch_before_first_turn() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let ledger = Arc::new(Ledger::open(home.path().to_path_buf()).expect("ledger"));
+    let thread = ledger
+        .create_thread(&NewThread {
+            cwd: cwd.path().display().to_string(),
+            model: "grok-4.6".to_string(),
+            sandbox: ThreadSandbox::ReadOnly,
+            approval_policy: ApprovalPolicy::Untrusted,
+            developer_instructions: String::new(),
+            acp_session_id: String::new(),
+        })
+        .unwrap();
+    let err = run_turn(
+        ledger.clone(),
+        &TurnRequest {
+            cwd: cwd.path().to_path_buf(),
+            prompt: "ping".to_string(),
+            approval: ApprovalPolicy::Untrusted,
+            sandbox: ThreadSandbox::ReadOnly,
+            extra: samchi_adapter_grok::ExtraSpawnFields::default(),
+            model: "other".to_string(),
+            effort: String::new(),
+            command: AgentCommand::Override {
+                program: env!("CARGO_BIN_EXE_fake-acp-agent").into(),
+                args: Vec::new(),
+            },
+            client_request_id: None,
+            follow_up_thread_id: None,
+            reuse_thread_id: Some(thread.id.clone()),
+        },
+    )
+    .expect_err("model lock");
+    assert!(err.to_string().contains("INVALID_CONFIG"), "{err}");
+    assert!(ledger.list_turns(None).unwrap().is_empty());
+    let stored = ledger.read_thread(&thread.id).unwrap();
+    assert_eq!(stored.model, "grok-4.6");
+    assert!(stored.acp_session_id.is_empty());
+}
+
+#[test]
 fn spawn_failure_after_admit_publishes_failed() {
     let home = tempfile::tempdir().expect("home");
     let cwd = tempfile::tempdir().expect("cwd");
