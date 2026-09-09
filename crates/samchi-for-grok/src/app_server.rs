@@ -777,6 +777,7 @@ fn turn_start(params: &Value, home: &Path) -> Result<Value, String> {
         sandbox,
         extra: ExtraSpawnFields::default(),
         model,
+        effort: String::new(),
         command: acp_command(),
         client_request_id: None,
         follow_up_thread_id,

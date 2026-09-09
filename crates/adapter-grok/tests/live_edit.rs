@@ -33,6 +33,7 @@ fn live_turn_edits_named_file() {
             sandbox: ThreadSandbox::WorkspaceWrite,
             extra: samchi_adapter_grok::ExtraSpawnFields::default(),
             model: "grok-4.6".to_string(),
+            effort: String::new(),
             command: AgentCommand::Grok {
                 program: Path::new("grok").to_path_buf(),
             },

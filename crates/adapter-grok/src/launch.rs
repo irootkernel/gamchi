@@ -1,5 +1,6 @@
 //! Map core spawn fields onto `grok` argv. Fail closed when Grok cannot enforce.
 
+use crate::defaults::ResolveError;
 use samchi_core::source_wire::{ApprovalPolicy, ThreadSandbox};
 use std::path::{Path, PathBuf};
 
@@ -47,6 +48,10 @@ pub struct LaunchRequest<'a> {
     pub approval: ApprovalPolicy,
     pub sandbox: ThreadSandbox,
     pub extra: ExtraSpawnFields,
+    /// Already-resolved model id placed on `agent -m`.
+    pub model: &'a str,
+    /// Already-resolved effort placed on `agent --reasoning-effort`.
+    pub effort: &'a str,
 }
 
 /// Parent-owned `grok agent stdio` argv.
@@ -60,6 +65,7 @@ pub struct LaunchPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LaunchError {
     Unenforceable { field: String, reason: String },
+    InvalidConfig { reason: String },
 }
 
 impl std::fmt::Display for LaunchError {
@@ -68,11 +74,23 @@ impl std::fmt::Display for LaunchError {
             Self::Unenforceable { field, reason } => {
                 write!(f, "unenforceable {field}: {reason}")
             }
+            Self::InvalidConfig { reason } => write!(f, "INVALID_CONFIG: {reason}"),
         }
     }
 }
 
 impl std::error::Error for LaunchError {}
+
+impl From<ResolveError> for LaunchError {
+    fn from(err: ResolveError) -> Self {
+        match err {
+            ResolveError::InvalidConfig { reason } => Self::InvalidConfig { reason },
+            ResolveError::ModelMismatch { requested, frozen } => Self::InvalidConfig {
+                reason: format!("follow-up model {requested} is not thread model {frozen}"),
+            },
+        }
+    }
+}
 
 /// Map spawn fields to argv, or refuse before the child starts.
 ///
@@ -119,6 +137,12 @@ pub fn plan_launch(req: &LaunchRequest<'_>) -> Result<LaunchPlan, LaunchError> {
     if always_approve {
         args.push("--always-approve".to_string());
     }
+    args.extend([
+        "-m".to_string(),
+        req.model.to_string(),
+        "--reasoning-effort".to_string(),
+        req.effort.to_string(),
+    ]);
     args.push("stdio".to_string());
     Ok(LaunchPlan {
         program: req.program.to_path_buf(),
@@ -143,6 +167,8 @@ mod tests {
             approval,
             sandbox,
             extra,
+            model: "grok-4.6",
+            effort: "high",
         }
     }
 
@@ -169,14 +195,24 @@ mod tests {
                 "agent",
                 "--no-leader",
                 "--always-approve",
+                "-m",
+                "grok-4.6",
+                "--reasoning-effort",
+                "high",
                 "stdio",
             ]
         );
         let sandbox_at = plan.args.iter().position(|a| a == "--sandbox").unwrap();
         let agent_at = plan.args.iter().position(|a| a == "agent").unwrap();
+        let model_at = plan.args.iter().position(|a| a == "-m").unwrap();
         assert!(
             sandbox_at < agent_at,
             "sandbox must be a grok top-level flag"
+        );
+        assert!(
+            agent_at < model_at,
+            "-m must be an agent flag: {:?}",
+            plan.args
         );
         assert_ne!(
             plan.args.get(agent_at + 1).map(String::as_str),
@@ -231,6 +267,7 @@ mod tests {
         .expect_err("read-only");
         match err {
             LaunchError::Unenforceable { field, .. } => assert_eq!(field, "sandbox"),
+            LaunchError::InvalidConfig { reason } => panic!("{reason}"),
         }
 
         let extra = ExtraSpawnFields {
@@ -247,6 +284,7 @@ mod tests {
         .expect_err("extra");
         match err {
             LaunchError::Unenforceable { field, .. } => assert_eq!(field, "networkAccess"),
+            LaunchError::InvalidConfig { reason } => panic!("{reason}"),
         }
     }
 
@@ -262,6 +300,7 @@ mod tests {
         .expect_err("relative cwd");
         match err {
             LaunchError::Unenforceable { field, .. } => assert_eq!(field, "cwd"),
+            LaunchError::InvalidConfig { reason } => panic!("{reason}"),
         }
     }
 }

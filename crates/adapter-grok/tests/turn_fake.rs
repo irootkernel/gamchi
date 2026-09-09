@@ -24,6 +24,7 @@ fn fake_agent_turn_publishes_items() {
             sandbox: ThreadSandbox::WorkspaceWrite,
             extra: samchi_adapter_grok::ExtraSpawnFields::default(),
             model: "test".to_string(),
+            effort: String::new(),
             command: AgentCommand::Override {
                 program: env!("CARGO_BIN_EXE_fake-acp-agent").into(),
                 args: Vec::new(),
@@ -36,6 +37,8 @@ fn fake_agent_turn_publishes_items() {
     .unwrap_or_else(|err| panic!("{err}"));
     assert_eq!(outcome.turn.status, TurnStatus::Completed);
     assert_eq!(outcome.turn.stop_reason, "end_turn");
+    assert_eq!(outcome.turn.model, "test");
+    assert_eq!(outcome.turn.effort, "high");
     assert!(outcome
         .turn
         .items
@@ -74,6 +77,7 @@ fn concurrent_wait_sees_completed_not_worker_gone() {
             sandbox: ThreadSandbox::WorkspaceWrite,
             extra: samchi_adapter_grok::ExtraSpawnFields::default(),
             model: "test".to_string(),
+            effort: String::new(),
             command: AgentCommand::Override {
                 program: env!("CARGO_BIN_EXE_fake-acp-agent").into(),
                 args: Vec::new(),
@@ -107,6 +111,7 @@ fn follow_up_loads_same_session_without_duplicating_history() {
             sandbox: ThreadSandbox::WorkspaceWrite,
             extra: samchi_adapter_grok::ExtraSpawnFields::default(),
             model: "test".to_string(),
+            effort: String::new(),
             command: AgentCommand::Override {
                 program: env!("CARGO_BIN_EXE_fake-acp-agent").into(),
                 args: Vec::new(),
@@ -127,6 +132,7 @@ fn follow_up_loads_same_session_without_duplicating_history() {
             sandbox: ThreadSandbox::WorkspaceWrite,
             extra: samchi_adapter_grok::ExtraSpawnFields::default(),
             model: "test".to_string(),
+            effort: String::new(),
             command: AgentCommand::Override {
                 program: env!("CARGO_BIN_EXE_fake-acp-agent").into(),
                 args: Vec::new(),
@@ -178,6 +184,7 @@ fn reuse_thread_id_admits_session_new_on_existing_thread() {
             sandbox: ThreadSandbox::ReadOnly,
             extra: samchi_adapter_grok::ExtraSpawnFields::default(),
             model: "test".to_string(),
+            effort: String::new(),
             command: AgentCommand::Override {
                 program: env!("CARGO_BIN_EXE_fake-acp-agent").into(),
                 args: Vec::new(),
@@ -217,6 +224,7 @@ fn spawn_failure_after_admit_publishes_failed() {
             sandbox: ThreadSandbox::ReadOnly,
             extra: samchi_adapter_grok::ExtraSpawnFields::default(),
             model: "test".to_string(),
+            effort: String::new(),
             command: AgentCommand::Override {
                 program: PathBuf::from("/no/such/samchi-acp-agent"),
                 args: Vec::new(),

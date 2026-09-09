@@ -5,6 +5,7 @@
 //! (ADR-0002). TASK-007 maps `session/update` onto `source_wire` items and
 //! spawns parent-owned `grok agent stdio`.
 
+mod defaults;
 mod fake;
 mod launch;
 pub mod live_capture;
@@ -12,6 +13,10 @@ mod map;
 mod teardown;
 mod turn;
 
+pub use defaults::{
+    load_home_defaults, resolve_first_turn, resolve_follow_up, HomeDefaults, ResolveError,
+    BUILTIN_EFFORT, BUILTIN_MODEL, GROK_ALIAS,
+};
 pub use fake::{run_fake_agent, STUB_REPLY, STUB_SESSION_ID, STUB_TOOL_CALL_ID};
 pub use launch::{
     plan_launch, ExtraSpawnFields, LaunchError, LaunchPlan, LaunchRequest,

@@ -1,5 +1,6 @@
 //! Run one ACP turn: spawn `grok agent stdio` (or a test agent) and publish items.
 
+use crate::defaults::{load_home_defaults, resolve_first_turn, resolve_follow_up};
 use crate::launch::{plan_launch, ExtraSpawnFields, LaunchError, LaunchPlan, LaunchRequest};
 use crate::map::Mapper;
 use crate::teardown::teardown_process_group;
@@ -41,6 +42,8 @@ pub struct TurnRequest {
     pub sandbox: ThreadSandbox,
     pub extra: ExtraSpawnFields,
     pub model: String,
+    /// Empty means omitted. Whitespace-only is `INVALID_CONFIG`.
+    pub effort: String,
     pub command: AgentCommand,
     pub client_request_id: Option<String>,
     /// When set, admit on this thread and `session/load` its stored ACP session.
@@ -134,28 +137,17 @@ async fn run_turn_async(
     req: &TurnRequest,
     on_admit: impl FnOnce(&Turn),
 ) -> Result<TurnOutcome, AdapterError> {
-    let plan = match &req.command {
-        AgentCommand::Grok { program } => plan_launch(&LaunchRequest {
-            program,
-            cwd: &req.cwd,
-            approval: req.approval,
-            sandbox: req.sandbox,
-            extra: req.extra.clone(),
-        })?,
-        AgentCommand::Override { program, args } => LaunchPlan {
-            program: program.clone(),
-            args: args.clone(),
-        },
-    };
-
     if req.follow_up_thread_id.is_some() && req.reuse_thread_id.is_some() {
         return Err(AdapterError::Acp(
             "follow_up_thread_id and reuse_thread_id are mutually exclusive".to_string(),
         ));
     }
 
+    let defaults = load_home_defaults(ledger.home()).map_err(LaunchError::from)?;
     let start_head = git_head(&req.cwd);
-    let (thread, load_session_id) = if let Some(thread_id) = req.follow_up_thread_id.as_deref() {
+    let (thread, load_session_id, model, effort) = if let Some(thread_id) =
+        req.follow_up_thread_id.as_deref()
+    {
         let thread = ledger.read_thread(thread_id)?;
         if thread.acp_session_id.is_empty() {
             return Err(AdapterError::Acp(
@@ -163,30 +155,64 @@ async fn run_turn_async(
             ));
         }
         let sid = thread.acp_session_id.clone();
-        (thread, Some(sid))
+        let previous = previous_turn_effort(&ledger, &thread.id)?;
+        let (model, effort) =
+            resolve_follow_up(&req.model, &req.effort, &thread.model, &previous, &defaults)
+                .map_err(LaunchError::from)?;
+        (thread, Some(sid), model, effort)
     } else if let Some(thread_id) = req.reuse_thread_id.as_deref() {
-        (ledger.read_thread(thread_id)?, None)
+        let thread = ledger.read_thread(thread_id)?;
+        let previous = previous_turn_effort(&ledger, &thread.id)?;
+        let (model, effort) = if previous.is_empty() {
+            let model_field = if req.model.is_empty() {
+                thread.model.as_str()
+            } else {
+                req.model.as_str()
+            };
+            resolve_first_turn(model_field, &req.effort, &defaults).map_err(LaunchError::from)?
+        } else {
+            resolve_follow_up(&req.model, &req.effort, &thread.model, &previous, &defaults)
+                .map_err(LaunchError::from)?
+        };
+        (thread, None, model, effort)
     } else {
-        (
-            ledger.create_thread(&NewThread {
-                cwd: req.cwd.display().to_string(),
-                model: req.model.clone(),
-                sandbox: req.sandbox,
-                approval_policy: req.approval,
-                developer_instructions: String::new(),
-                acp_session_id: String::new(),
-            })?,
-            None,
-        )
+        let (model, effort) =
+            resolve_first_turn(&req.model, &req.effort, &defaults).map_err(LaunchError::from)?;
+        let thread = ledger.create_thread(&NewThread {
+            cwd: req.cwd.display().to_string(),
+            model: model.clone(),
+            sandbox: req.sandbox,
+            approval_policy: req.approval,
+            developer_instructions: String::new(),
+            acp_session_id: String::new(),
+        })?;
+        (thread, None, model, effort)
     };
+
+    let plan = match &req.command {
+        AgentCommand::Grok { program } => plan_launch(&LaunchRequest {
+            program,
+            cwd: &req.cwd,
+            approval: req.approval,
+            sandbox: req.sandbox,
+            extra: req.extra.clone(),
+            model: &model,
+            effort: &effort,
+        })?,
+        AgentCommand::Override { program, args } => LaunchPlan {
+            program: program.clone(),
+            args: args.clone(),
+        },
+    };
+
     let turn = ledger.admit_turn(&NewTurn {
         thread_id: thread.id.clone(),
         input: vec![UserInput {
             kind: "text".to_string(),
             text: req.prompt.clone(),
         }],
-        model: req.model.clone(),
-        effort: String::new(),
+        model: model.clone(),
+        effort: effort.clone(),
         client_request_id: req.client_request_id.clone(),
     })?;
     on_admit(&turn);
@@ -660,6 +686,24 @@ fn stop_reason_str(stop: StopReason) -> &'static str {
         StopReason::MaxTurnRequests => "max_turn_requests",
         _ => "unknown",
     }
+}
+
+fn previous_turn_effort(ledger: &Ledger, thread_id: &str) -> Result<String, AdapterError> {
+    let mut best: Option<(u64, String, String)> = None;
+    for turn in ledger.list_turns(None)? {
+        if turn.thread_id != thread_id {
+            continue;
+        }
+        let started = ledger.read_generation(&turn.generation_id)?.started_epoch;
+        let take = match &best {
+            None => true,
+            Some((epoch, id, _)) => started > *epoch || (started == *epoch && turn.id > *id),
+        };
+        if take {
+            best = Some((started, turn.id, turn.effort));
+        }
+    }
+    Ok(best.map(|(_, _, effort)| effort).unwrap_or_default())
 }
 
 fn git_head(cwd: &Path) -> Option<String> {
