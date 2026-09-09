@@ -46,7 +46,7 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: none.
+Next eligible Task: `TASK-023`.
 
 ## Phase index
 
@@ -55,6 +55,7 @@ Next eligible Task: none.
 | Phase 1 — Contract and feasibility | Test gate, internal thread/turn/item types, ACP go/no-go | `Completed` | EPIC-001..EPIC-002 |
 | Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `Completed` | EPIC-003..EPIC-004 |
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Completed` | EPIC-005 |
+| Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `Planned` | EPIC-006 |
 
 ## EPIC-001: Foundation
 
@@ -169,3 +170,25 @@ Layer the CCAS standard wire on the same worker. No new runtime.
 | [TASK-017](#epic-005-app-server-wire) | nine thread/turn methods call the worker | `Completed` | TASK-016 | socket thread/start+turn/start writes the same ledger as MCP spawn |
 | [TASK-018](#epic-005-app-server-wire) | server notifications + requestApproval on the socket | `Completed` | TASK-017 | item/started, completed, turn/completed. approvals are socket server requests |
 | [TASK-019](#epic-005-app-server-wire) | five consumer scenarios + grok/runtime/read | `Completed` | TASK-018 | Named scenarios and grok/runtime/read shape live in this repo. Dolgorae-shaped client passes. thread/fork only if a new capture proved it (ADR-0002 did not decide it). Not a Dolgorae Profile integration |
+
+## EPIC-006: Selectable Grok model
+
+Status: `Planned`
+
+Depends on: EPIC-005
+
+Detailed SOT: [TODO-EPIC-006.md](../todo/TODO-EPIC-006.md)
+
+Parents choose a Grok model and reasoning effort when they spawn. Omitted
+fields resolve from home `config.yaml`, then built-in `grok-4.6` / `high`,
+and are placed on the Grok argv. Samchi returns an error if the child
+does not start. A thread freezes its model; later turns may change
+effort only. Do not rewrite completed Tasks.
+
+| Task | Title | Status | Depends on | Done when |
+| --- | --- | --- | --- | --- |
+| [TASK-023](#epic-006-selectable-grok-model) | Spec model/effort launch, home YAML config, pass-through, and thread lock | `Planned` | TASK-019 | grok-launch.md maps `-m` and `--reasoning-effort`, home `config.yaml` keys `default_model` and `default_effort`, blank-vs-absent, `grok` alias, empty stored effort, child-start failure, and thread lock. mcp-async-host-contract spawn/followup fields. product.md omitted defaults. Dossier remains the execution map |
+| [TASK-024](#epic-006-selectable-grok-model) | Home `config.yaml` plus argv `-m`/`--reasoning-effort`; Grok child failure is the error | `Planned` | TASK-023 | Reads home `config.yaml` keys `default_model` and `default_effort`, then built-in grok-4.6/high. Absent key skips; blank value refuses. `grok` normalizes to grok-4.6. Empty stored effort is omitted. Launch argv carries the pair. Child start/ACP failure fails the turn. No `grok models` spawn allowlist. No project-local config. Offline fake agent; `make test` does not call live Grok |
+| [TASK-025](#epic-006-selectable-grok-model) | MCP/CLI spawn and follow-up fields plus skill | `Planned` | TASK-024 | grok_spawn, grok_followup, worker start, and worker followup accept model/effort. Follow-up model mismatch refuses. Skill recommends adding `.samchi-for-grok/` to `.gitignore` and does not edit that file |
+| [TASK-026](#epic-006-selectable-grok-model) | App-server model/list and reject mid-thread model change | `Planned` | TASK-025 | model/list may list live Grok ids for advertisement, not as a spawn gate. Omitted thread/start uses the same cascade as MCP. turn/start model change fails closed. Effort may change |
+| [TASK-027](#epic-006-selectable-grok-model) | Live proof of requested model/effort | `Planned` | TASK-026 | Ignored live test: requested pair is on the child argv and capture model_id. Follow-up effort change works. Follow-up model change refuses. Follow-up with empty stored effort uses high or home default_effort. Compilation is not live proof |
