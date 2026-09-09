@@ -33,14 +33,14 @@ Owned by [product.md](../specs/product.md) exclusions and earlier epics:
 | Topic | Owner |
 | --- | --- |
 | Identity, order, lifecycle | [roadmap](../roadmap/README.md) |
-| Omitted MCP spawn defaults and home config | [product.md](../specs/product.md), [grok-launch.md](../specs/grok-launch.md) (TASK-023) |
-| Launch argv and child-start failure | [grok-launch.md](../specs/grok-launch.md) (TASK-023) |
-| MCP/CLI/socket field behavior and thread lock | [mcp-async-host-contract.md](../specs/mcp-async-host-contract.md) (TASK-023) |
-| Adapter owns catalog verification | [architecture/core.md](../architecture/core.md) |
+| Omitted MCP spawn defaults and home config | [product.md](../specs/product.md), [grok-launch.md](../specs/grok-launch.md) |
+| Launch argv and child-start failure | [grok-launch.md](../specs/grok-launch.md) |
+| MCP/CLI/socket field behavior and thread lock | [mcp-async-host-contract.md](../specs/mcp-async-host-contract.md) |
+| Catalog listing is advertisement, not a spawn gate | [architecture/core.md](../architecture/core.md) |
 | v1 `grok agent stdio` owner | [ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md) |
 
-Do not copy those documents here. If they disagree after TASK-023, they
-win; this dossier only maps them until then.
+Do not copy those documents here. After TASK-023 the specs own the
+policy; this dossier remains the execution map.
 
 ## Locked decisions
 
@@ -139,7 +139,7 @@ TASK-023 depends on TASK-019 (`Completed`).
 
 | Task | Runtime owner | Verification | Must not |
 | --- | --- | --- | --- |
-| TASK-023 | Specs: grok-launch.md, mcp-async-host-contract.md, product.md omitted defaults and home `config.yaml`. This dossier stays the map | `make test` docscheck. Specs name the cascade, blank-vs-absent, `grok` alias, and empty stored effort | Implement argv; treat the current stub `model/list` as the final catalog |
+| TASK-023 | Specs: grok-launch.md, mcp-async-host-contract.md, product.md omitted defaults and home `config.yaml`. This dossier stays the map | `make test` docscheck. Specs name the cascade, blank-vs-absent, `grok` alias, and empty stored effort | Implement argv; treat the current stub `model/list` as the final catalog. Specified; TASK-024 implements argv |
 | TASK-024 | Adapter reads home `config.yaml`, then `plan_launch` adds `-m` and `--reasoning-effort`. Child start/ACP failure is the error | Unit: built-in default, `default_model`/`default_effort` override, explicit wins, absent key skips, blank value refuses, `grok` → `grok-4.6`, empty stored effort → `high` (or home default). Offline fake agent still runs | Call live Grok from `make test`; pre-parse `grok models` as a spawn allowlist; read `~/.grok/`; add project-local config; treat config keys as `model`/`effort`; skip a present blank config key |
 | TASK-025 | MCP `grok_spawn` / `grok_followup`, CLI `worker start` / `followup`, skill | Schema and CLI usage publish the fields. Follow-up model mismatch refuses. Skill recommends adding `.samchi-for-grok/` to the consumer `.gitignore` and does not edit that file | Change app-server in this Task; default to user Grok config; silently edit user gitignore |
 | TASK-026 | App-server `model/list`, `thread/start` omitted model, `turn/start` model lock | Offline: listing may use a `grok models` fixture; listing failure is not a spawn gate. Model change fails closed. Effort may change | Rewrite TASK-016 history; claim Codex model names; refuse spawn because `model/list` failed |

@@ -28,6 +28,12 @@ beyond that milestone.
 `approvalPolicy=never`, `sandbox=workspace-write`. Write-capable, not
 read-only review.
 
+Omitted `model` and `effort` on MCP spawn, CLI `worker start`, and
+app-server `thread/start` resolve in [grok-launch.md](grok-launch.md):
+explicit parent field, then home `config.yaml` keys `default_model` and
+`default_effort`, then built-in `grok-4.6` / `high`. Samchi does not
+inherit `~/.grok/config.toml`. There is no project-local config.
+
 ## Exclusions
 
 - `grok -p` print mode
@@ -38,6 +44,8 @@ read-only review.
 - Detached daemon / `grok agent leader` as v1 owner
   ([ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md):
   parent-owned `grok agent stdio` with `--no-leader`)
+- Pre-admitting or rejecting spawn by parsing `grok models`
+- Project-local / cwd model config, or inheriting `~/.grok/config.toml`
 
 ## Supported environments (intent)
 

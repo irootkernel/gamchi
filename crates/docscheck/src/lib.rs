@@ -370,15 +370,21 @@ mod tests {
         assert_eq!(task_status(&body, "017").as_deref(), Some("Completed"));
         assert_eq!(task_status(&body, "018").as_deref(), Some("Completed"));
         assert_eq!(task_status(&body, "019").as_deref(), Some("Completed"));
+        assert_eq!(task_status(&body, "023").as_deref(), Some("Completed"));
         assert_eq!(current_task(&body).as_deref(), Some("none"));
-        assert_eq!(next_eligible_task(&body).as_deref(), Some("none"));
+        assert_eq!(next_eligible_task(&body).as_deref(), Some("TASK-024"));
         assert_eq!(epic_status(&body, "EPIC-002").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-003").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-004").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-005").as_deref(), Some("Completed"));
+        assert_eq!(
+            epic_status(&body, "EPIC-006").as_deref(),
+            Some("In Progress")
+        );
         assert_eq!(phase_status(&body, 1).as_deref(), Some("Completed"));
         assert_eq!(phase_status(&body, 2).as_deref(), Some("Completed"));
         assert_eq!(phase_status(&body, 3).as_deref(), Some("Completed"));
+        assert_eq!(phase_status(&body, 4).as_deref(), Some("In Progress"));
     }
 
     #[test]

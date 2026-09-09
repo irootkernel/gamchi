@@ -65,7 +65,7 @@ Facades call core. They do not speak ACP.
 
 - `grok agent stdio`
 - ACP `session/update` → ThreadItems ([ACP mapping](../specs/acp-item-mapping.md))
-- Grok model catalog verification
+- Grok model catalog listing (advertisement only; not a spawn gate)
 - Honest Grok identity (`runtime: grok`)
 
 Core never imports the Grok, Claude, or zcode SDKs.
@@ -102,7 +102,10 @@ Unix socket, upgrades HTTP/1.1 GET `/` to WebSocket, and fails closed on an
 occupied path. TASK-016 publishes honest JSON-RPC `initialize` /
 `initialized` / `account/read` / Grok `model/list` on that socket.
 `userAgent=samchi-for-grok/app-server-v1` stays out of core.
-`capabilities.ccas` is JSON-RPC `-32602`. TASK-017 publishes
+`capabilities.ccas` is JSON-RPC `-32602`. TASK-023 records that
+`model/list` is advertisement only and does not gate spawn; TASK-026
+may list live Grok ids. The current stub `model: "grok"` row is not
+the final catalog. TASK-017 publishes
 `thread/start`, `thread/resume`, `thread/read`, `turn/start`, and
 `turn/interrupt` on the same worker ledger as MCP spawn. Omitted socket
 sandbox and approvalPolicy stay `read-only` and `untrusted`. `thread/fork`

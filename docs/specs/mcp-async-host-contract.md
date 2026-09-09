@@ -42,6 +42,7 @@ nonterminal `inProgress`. Unlisted status strings are Unreadable.
 | `approvalPolicy` | `never` | Unattended implementation. Grok may edit and run commands. |
 | `sandbox` | `workspace-write` | Real coding work, not read-only review. |
 | `approvalPolicy` override | `untrusted` / `on-request` | Admitted. Pause for `grok_respond`. Default spawn remains `never`. |
+| `model` / `effort` omitted | home `config.yaml`, else `grok-4.6` / `high` | Samchi owns omitted defaults ([grok-launch.md](grok-launch.md)). |
 
 TASK-010 host smoke uses these defaults (yolo + writable). It must show Grok
 can change a file, not only reply `pong`. A parent that wants review-only
@@ -52,7 +53,10 @@ App-server omitted-field defaults (EPIC-005) stay on the Dolgorae/CCAS wire
 (`sandbox` omitted → `read-only`, `approvalPolicy` omitted → `untrusted`).
 Those are a different parent. Socket `thread/start` + `turn/start` still
 write the same home ledger as MCP spawn; they do not inherit MCP spawn
-defaults. Socket approvals are subset server requests
+`approvalPolicy` / `sandbox` defaults. Omitted socket `model` / `effort`
+use the same cascade as MCP spawn ([grok-launch.md](grok-launch.md)).
+A later `turn/start` may change `effort` only; a model change is refused
+after `grok` → `grok-4.6` normalization (TASK-026). Socket approvals are subset server requests
 (`item/commandExecution/requestApproval`, `item/fileChange/requestApproval`)
 on that same `pending_approval` / respond ledger. They are not MCP
 `grok_respond`. TASK-019 publishes `grok/runtime/read` on that socket
@@ -67,20 +71,37 @@ not-implemented is not done.
 
 | Tool | When published | Behavior |
 | --- | --- | --- |
-| `grok_spawn` | TASK-009 | MCP only: returns ids immediately. Owner = this MCP server. |
+| `grok_spawn` | TASK-009 | MCP only: returns ids immediately. Owner = this MCP server. Optional `model` / `effort` (TASK-025). |
 | `grok_await` | TASK-009 | No samchi-for-grok timeout. Returns on terminal TurnStatus, or `await_reason: pending_approval`. |
 | `grok_wait` | TASK-009 | Default and max `timeout_ms` 50000 (under a typical 60s host tool deadline, same cap as Gaori). Timeout does **not** cancel the turn. |
 | `grok_status` | TASK-009 | One snapshot. |
 | `grok_result` | TASK-009 | Terminal envelope, or `not_ready`. Truncation: see Result bounds. |
 | `grok_list` | TASK-009 | Recent turns from the disk ledger. |
 | `grok_cancel` | TASK-011 | Process-group teardown → TurnStatus `interrupted`. |
-| `grok_followup` | TASK-012 | New turn, same ACP session (`session/load`). |
+| `grok_followup` | TASK-012 | New turn, same ACP session (`session/load`). Optional `model` / `effort` (TASK-025). Model mismatch refuses. |
 | `grok_respond` | TASK-013 | ACP `session/request_permission` decision. Then `grok_await` again. |
 
 TASK-009 smoke is **six** MCP tools. CLI TASK-008: `start` (print ids, stay
 until terminal), `wait`, `status`, `result`, `list`. CLI has no detached
 `await` in v1 because `start` is the owner. `cancel` / follow-up / respond
 appear on CLI when those Tasks land.
+
+## Model and effort fields
+
+`grok_spawn` and CLI `worker start` accept optional `model` and `effort`
+(TASK-025 publishes the wire). Omitted fields use the cascade in
+[grok-launch.md](grok-launch.md). Present blank or whitespace is
+`INVALID_CONFIG`. The resolved pair is passed to Grok; child start
+failure is the error. `grok models` does not gate spawn.
+
+`grok_followup` and CLI `worker followup` accept the same optional
+fields. Follow-up does not re-resolve the thread model from config. An
+explicit follow-up `model` that is not the frozen thread model is
+refused before a new child starts, after normalizing `grok` to
+`grok-4.6` on both sides. Omitted follow-up `effort` uses the previous
+turn's stored effort when that value is non-blank; empty stored effort
+is omitted (`default_effort`, else `high`). Explicit later `effort` may
+change.
 
 ## Result bounds and lost spawn
 
