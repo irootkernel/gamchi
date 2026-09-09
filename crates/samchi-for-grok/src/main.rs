@@ -10,12 +10,6 @@ use std::io::{self, Write};
 use std::process::ExitCode;
 use worker::run_worker;
 
-/// Honest initialize identity. It is not Codex or CCAS.
-/// Kept out of `samchi-core`.
-/// Consumed by TASK-016 initialize; unused in this stub.
-#[allow(dead_code)]
-const USER_AGENT: &str = "samchi-for-grok/app-server-v1";
-
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -88,7 +82,7 @@ mod tests {
 
     #[test]
     fn user_agent_is_honest_identity() {
-        assert_eq!(USER_AGENT, "samchi-for-grok/app-server-v1");
+        assert_eq!(app_server::USER_AGENT, "samchi-for-grok/app-server-v1");
     }
 
     #[test]

@@ -33,8 +33,8 @@ Dolgorae.
 
 ## Status
 
-See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-016
-(app-server initialize). ACP go is
+See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-017
+(app-server thread/turn). ACP go is
 [ADR-0002](docs/architecture-decision-records/0002-grok-agent-stdio.md).
 The TASK-004 live `grok agent stdio` capture is
 [crates/adapter-grok/captures/task-004](crates/adapter-grok/captures/task-004).
@@ -54,5 +54,6 @@ and `samchi-for-grok mcp` (spawn, await, wait, status, result, list, cancel,
 followup, respond) are implemented. Host packaging lives in
 [skills/use-samchi-for-grok](skills/use-samchi-for-grok/SKILL.md) and
 [docs/ops](docs/ops/). `samchi-for-grok app-server --listen unix://<absolute-path>`
-binds a Unix socket and upgrades HTTP/1.1 GET `/` to WebSocket; occupied paths
-fail closed. JSON-RPC `initialize` is TASK-016.
+binds a Unix socket, upgrades HTTP/1.1 GET `/` to WebSocket, and answers
+honest `initialize` / `initialized` / `account/read` / Grok `model/list`.
+Occupied paths fail closed. Thread/turn methods are TASK-017.

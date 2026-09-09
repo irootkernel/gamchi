@@ -1,15 +1,20 @@
-//! Unix-domain app-server listen and HTTP/1.1 WebSocket upgrade (TASK-015).
-//! JSON-RPC handshake stays TASK-016.
+//! Unix-domain app-server listen, HTTP/1.1 WebSocket upgrade, and TASK-016
+//! JSON-RPC handshake (initialize / initialized / account/read / model/list).
 
 use crate::ops::open_home;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
-use samchi_core::source_wire::MAX_HTTP_UPGRADE_BYTES;
+use samchi_core::source_wire::{MAX_HTTP_UPGRADE_BYTES, MAX_WEBSOCKET_FRAME_BYTES};
+use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
 use std::io::{self, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::thread;
+
+/// Honest initialize identity. Kept out of `samchi-core`.
+pub(crate) const USER_AGENT: &str = "samchi-for-grok/app-server-v1";
+const METHOD_NOT_FOUND: i64 = -32602;
 
 /// RFC 6455 magic string used with `Sec-WebSocket-Key`.
 const WEBSOCKET_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -50,11 +55,14 @@ pub fn run(args: &[&str], stderr: &mut dyn Write) -> u8 {
             return 1;
         }
     };
-    if let Err(reason) = open_home(cfg.home.as_deref()) {
-        let _ = writeln!(stderr, "SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG");
-        let _ = writeln!(stderr, "{reason}");
-        return 1;
-    }
+    let home = match open_home(cfg.home.as_deref()) {
+        Ok(h) => h,
+        Err(reason) => {
+            let _ = writeln!(stderr, "SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG");
+            let _ = writeln!(stderr, "{reason}");
+            return 1;
+        }
+    };
     let listener = match bind_listen(&cfg.socket_path) {
         Ok(l) => l,
         Err(BindError::Occupied) => {
@@ -67,7 +75,7 @@ pub fn run(args: &[&str], stderr: &mut dyn Write) -> u8 {
             return 1;
         }
     };
-    accept_loop(listener);
+    accept_loop(listener, home);
     0
 }
 
@@ -129,32 +137,23 @@ fn bind_listen(path: &Path) -> Result<UnixListener, BindError> {
     })
 }
 
-fn accept_loop(listener: UnixListener) {
+fn accept_loop(listener: UnixListener, home: PathBuf) {
     for incoming in listener.incoming() {
         let Ok(stream) = incoming else {
             continue;
         };
+        let home = home.clone();
         thread::spawn(move || {
-            let _ = serve_connection(stream);
+            let _ = serve_connection(stream, &home);
         });
     }
 }
 
-fn serve_connection(mut stream: UnixStream) -> io::Result<()> {
+fn serve_connection(mut stream: UnixStream, home: &Path) -> io::Result<()> {
     match upgrade(&mut stream) {
-        Ok(()) => park(stream),
+        Ok(()) => rpc_loop(&mut stream, home),
         Err(UpgradeReject::HeadersTooLarge) => Ok(()),
         Err(reject) => write_reject(&mut stream, reject),
-    }
-}
-
-fn park(mut stream: UnixStream) -> io::Result<()> {
-    let mut buf = [0_u8; 1024];
-    loop {
-        match stream.read(&mut buf) {
-            Ok(0) | Err(_) => return Ok(()),
-            Ok(_) => {}
-        }
     }
 }
 
@@ -290,6 +289,144 @@ fn websocket_accept(key: &str) -> String {
     hasher.update(key.as_bytes());
     hasher.update(WEBSOCKET_GUID.as_bytes());
     STANDARD.encode(hasher.finalize())
+}
+
+fn rpc_loop(stream: &mut UnixStream, _home: &Path) -> io::Result<()> {
+    loop {
+        match read_ws_text(stream) {
+            Ok(None) => return Ok(()),
+            Ok(Some(bytes)) => {
+                let Ok(msg) = serde_json::from_slice::<Value>(&bytes) else {
+                    continue;
+                };
+                if let Some(reply) = handle_rpc(&msg) {
+                    write_ws_text(stream, &serde_json::to_vec(&reply)?)?;
+                }
+            }
+            Err(_) => return Ok(()),
+        }
+    }
+}
+
+fn handle_rpc(msg: &Value) -> Option<Value> {
+    let method = msg.get("method").and_then(Value::as_str)?;
+    let params = msg.get("params").cloned().unwrap_or(json!({}));
+    let id = msg.get("id").cloned()?;
+    if method == "capabilities.ccas"
+        || params
+            .get("capabilities")
+            .and_then(|c| c.get("ccas"))
+            .is_some()
+    {
+        return Some(rpc_error(id, METHOD_NOT_FOUND, "capabilities.ccas"));
+    }
+    match method {
+        "initialize" => Some(json!({"id": id, "result": initialize_result()})),
+        "account/read" => Some(json!({"id": id, "result": json!({"requiresOpenaiAuth": false})})),
+        "model/list" => Some(json!({"id": id, "result": model_list_result()})),
+        _ => Some(rpc_error(id, METHOD_NOT_FOUND, method)),
+    }
+}
+
+fn initialize_result() -> Value {
+    json!({
+        "userAgent": USER_AGENT,
+    })
+}
+
+fn model_list_result() -> Value {
+    json!({
+        "data": [{
+            "model": "grok",
+            "isDefault": true,
+            "supportedReasoningEfforts": []
+        }],
+        "nextCursor": Value::Null
+    })
+}
+
+fn rpc_error(id: Value, code: i64, message: &str) -> Value {
+    json!({"id": id, "error": {"code": code, "message": message}})
+}
+
+fn read_ws_text(stream: &mut UnixStream) -> io::Result<Option<Vec<u8>>> {
+    loop {
+        let Some((fin, opcode, payload)) = read_ws_frame(stream)? else {
+            return Ok(None);
+        };
+        match opcode {
+            0x1 if fin => return Ok(Some(payload)),
+            0x8 => return Ok(None),
+            0x9 => write_ws_frame(stream, 0xA, &payload)?,
+            0xA => {}
+            _ => return Ok(None),
+        }
+    }
+}
+
+fn write_ws_text(stream: &mut UnixStream, payload: &[u8]) -> io::Result<()> {
+    write_ws_frame(stream, 0x1, payload)
+}
+
+fn read_ws_frame(stream: &mut UnixStream) -> io::Result<Option<(bool, u8, Vec<u8>)>> {
+    let mut prefix = [0_u8; 2];
+    match stream.read_exact(&mut prefix) {
+        Ok(()) => {}
+        Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
+        Err(err) => return Err(err),
+    }
+    if prefix[0] & 0x70 != 0 {
+        return Err(io::Error::other("reserved bits"));
+    }
+    let masked = prefix[1] & 0x80 != 0;
+    if !masked {
+        return Err(io::Error::other("client frame must be masked"));
+    }
+    let fin = prefix[0] & 0x80 != 0;
+    let opcode = prefix[0] & 0x0f;
+    let marker = prefix[1] & 0x7f;
+    let length = match marker {
+        0..=125 => u64::from(marker),
+        126 => {
+            let mut bytes = [0_u8; 2];
+            stream.read_exact(&mut bytes)?;
+            u64::from(u16::from_be_bytes(bytes))
+        }
+        127 => {
+            let mut bytes = [0_u8; 8];
+            stream.read_exact(&mut bytes)?;
+            u64::from_be_bytes(bytes)
+        }
+        _ => return Err(io::Error::other("invalid length")),
+    };
+    if length > MAX_WEBSOCKET_FRAME_BYTES as u64 {
+        return Err(io::Error::other("frame too large"));
+    }
+    let mut mask = [0_u8; 4];
+    stream.read_exact(&mut mask)?;
+    let mut payload = vec![0_u8; length as usize];
+    stream.read_exact(&mut payload)?;
+    for (i, byte) in payload.iter_mut().enumerate() {
+        *byte ^= mask[i % 4];
+    }
+    Ok(Some((fin, opcode, payload)))
+}
+
+fn write_ws_frame(stream: &mut UnixStream, opcode: u8, payload: &[u8]) -> io::Result<()> {
+    let mut header = vec![0x80 | opcode];
+    let len = payload.len();
+    if len <= 125 {
+        header.push(len as u8);
+    } else if len <= 65535 {
+        header.push(126);
+        header.extend_from_slice(&(len as u16).to_be_bytes());
+    } else {
+        header.push(127);
+        header.extend_from_slice(&(len as u64).to_be_bytes());
+    }
+    stream.write_all(&header)?;
+    stream.write_all(payload)?;
+    stream.flush()
 }
 
 #[cfg(test)]
@@ -434,5 +571,55 @@ mod tests {
         assert!(parse_args(&[]).is_err());
         assert!(parse_args(&["--listen"]).is_err());
         assert!(parse_args(&["--home", "/tmp"]).is_err());
+    }
+
+    #[test]
+    fn initialize_is_honest_and_omits_jsonrpc() {
+        let req = json!({
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "clientInfo": {"name": "test", "version": "0"},
+                "capabilities": {"optOutNotificationMethods": []}
+            }
+        });
+        let reply = handle_rpc(&req).expect("reply");
+        assert!(reply.get("jsonrpc").is_none());
+        assert_eq!(reply["id"], 1);
+        assert_eq!(reply["result"]["userAgent"], USER_AGENT);
+        assert!(reply["result"]
+            .get("capabilities")
+            .and_then(|c| c.get("ccas"))
+            .is_none());
+    }
+
+    #[test]
+    fn capabilities_ccas_is_method_not_found() {
+        let req = json!({"id": 2, "method": "capabilities.ccas", "params": {}});
+        let reply = handle_rpc(&req).expect("reply");
+        assert_eq!(reply["error"]["code"], METHOD_NOT_FOUND);
+        let nested = json!({
+            "id": 3,
+            "method": "initialize",
+            "params": {"capabilities": {"ccas": true}}
+        });
+        let reply = handle_rpc(&nested).expect("reply");
+        assert_eq!(reply["error"]["code"], METHOD_NOT_FOUND);
+    }
+
+    #[test]
+    fn account_and_models_are_grok() {
+        let account =
+            handle_rpc(&json!({"id": 4, "method": "account/read", "params": {}})).unwrap();
+        assert_eq!(account["result"]["requiresOpenaiAuth"], false);
+        let models = handle_rpc(&json!({"id": 5, "method": "model/list", "params": {}})).unwrap();
+        assert_eq!(models["result"]["data"][0]["model"], "grok");
+        assert_eq!(models["result"]["data"][0]["isDefault"], true);
+        assert!(models["result"]["nextCursor"].is_null());
+    }
+
+    #[test]
+    fn initialized_notification_has_no_reply() {
+        assert!(handle_rpc(&json!({"method": "initialized", "params": {}})).is_none());
     }
 }

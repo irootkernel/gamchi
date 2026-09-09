@@ -63,6 +63,41 @@ fn stop(child: &mut Child, sock: &Path) {
     let _ = std::fs::remove_file(sock);
 }
 
+fn client_text_frame(payload: &[u8]) -> Vec<u8> {
+    let mask = [1_u8, 2, 3, 4];
+    let mut out = vec![0x81];
+    if payload.len() <= 125 {
+        out.push(0x80 | payload.len() as u8);
+    } else {
+        out.push(0x80 | 126);
+        out.extend_from_slice(&(payload.len() as u16).to_be_bytes());
+    }
+    out.extend_from_slice(&mask);
+    for (i, b) in payload.iter().enumerate() {
+        out.push(b ^ mask[i % 4]);
+    }
+    out
+}
+
+fn read_server_text(stream: &mut UnixStream) -> String {
+    let mut prefix = [0_u8; 2];
+    stream.read_exact(&mut prefix).expect("prefix");
+    assert_eq!(prefix[0] & 0x0f, 0x1);
+    assert_eq!(prefix[1] & 0x80, 0, "server frames are unmasked");
+    let marker = prefix[1] & 0x7f;
+    let len = if marker <= 125 {
+        marker as usize
+    } else {
+        assert_eq!(marker, 126);
+        let mut ext = [0_u8; 2];
+        stream.read_exact(&mut ext).expect("ext");
+        u16::from_be_bytes(ext) as usize
+    };
+    let mut payload = vec![0_u8; len];
+    stream.read_exact(&mut payload).expect("payload");
+    String::from_utf8(payload).expect("utf8")
+}
+
 fn read_headers(stream: &mut UnixStream) -> String {
     let mut buf = Vec::new();
     let mut byte = [0_u8; 1];
@@ -99,6 +134,23 @@ fn listen_upgrades_dolgorae_handshake() {
     );
     assert!(resp.to_ascii_lowercase().contains("upgrade: websocket"));
     assert!(resp.contains("Sec-WebSocket-Accept:"), "{resp}");
+    let init = serde_json::json!({
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "clientInfo": {"name": "shaped", "version": "0"},
+            "capabilities": {"optOutNotificationMethods": []}
+        }
+    });
+    stream
+        .write_all(&client_text_frame(init.to_string().as_bytes()))
+        .unwrap();
+    let reply: serde_json::Value = serde_json::from_str(&read_server_text(&mut stream)).unwrap();
+    assert!(reply.get("jsonrpc").is_none(), "{reply}");
+    assert_eq!(
+        reply["result"]["userAgent"],
+        "samchi-for-grok/app-server-v1"
+    );
     stop(&mut child, &sock);
 }
 

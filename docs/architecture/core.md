@@ -99,7 +99,10 @@ generation: observe `failed`/`worker_gone` only. Crash is not `interrupted`.
 TASK-015 publishes the app-server facade listen:
 `app-server --listen unix://<absolute-path> [--home]`. The process owns the
 Unix socket, upgrades HTTP/1.1 GET `/` to WebSocket, and fails closed on an
-occupied path. JSON-RPC `initialize` remains TASK-016.
+occupied path. TASK-016 publishes honest JSON-RPC `initialize` /
+`initialized` / `account/read` / Grok `model/list` on that socket.
+`userAgent=samchi-for-grok/app-server-v1` stays out of core.
+`capabilities.ccas` is JSON-RPC `-32602`.
 
 ## v1 scope
 

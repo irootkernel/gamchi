@@ -65,4 +65,6 @@ terminal) and no second Grok child is started for that `turn_id`. Live Grok
 is not required.
 TASK-015 app-server listen is offline in `samchi-for-grok` (`app_server`):
 HTTP/1.1 upgrade on `/`, recorded rejection table, occupied path fail-closed.
-Live Grok is not required.
+TASK-016 handshake is offline JSON-RPC on that socket: honest
+`userAgent=samchi-for-grok/app-server-v1`, `capabilities.ccas` is `-32602`,
+Grok `model/list`, no `jsonrpc` member. Live Grok is not required.
