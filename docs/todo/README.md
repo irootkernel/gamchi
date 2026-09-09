@@ -25,3 +25,8 @@ Future candidates (not lifecycle):
   and the live_* tests (EPIC-004 confirmation Low F002). Re-enter
   when adding another MCP stdio test that would copy the child
   harness again. The confirmation review predates this note.
+- When two prior turns on one thread share `started_epoch`,
+  `previous_turn_effort` tie-breaks on process-prefixed turn ids
+  instead of start time (EPIC-006 validation Low F002). Re-enter
+  if omitted follow-up effort must stay correct for sub-second or
+  cross-process turns. TASK-025 sequential follow-up still holds.
