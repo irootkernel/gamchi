@@ -15,7 +15,9 @@ tested in `samchi-core`, including two-process lock and owner-death helpers.
 The adapter crate's fake ACP agent, stdio harness, launch planner, and
 `session/update` mapper live in `crates/adapter-grok`. TASK-024 unit tests
 cover home `config.yaml` cascade, the `grok` alias, empty stored effort,
-and argv `-m` / `--reasoning-effort` without calling live Grok. TASK-007's live
+and argv `-m` / `--reasoning-effort` without calling live Grok. TASK-025
+publishes MCP/CLI `model` / `effort` fields and follow-up model lock offline.
+TASK-007's live
 `grok agent stdio` file-edit turn is an ignored test (`live_edit`); `make test`
 still does not spawn live Grok. TASK-005's go ADR is checked against that
 capture parser.

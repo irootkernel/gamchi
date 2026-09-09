@@ -109,6 +109,13 @@ fn tools_list_includes_cancel_and_spawn_await() {
             "grok_respond"
         ]
     );
+    let tools = listed["result"]["tools"].as_array().unwrap();
+    let spawn_props = &tools[0]["inputSchema"]["properties"];
+    assert!(spawn_props.get("model").is_some(), "{spawn_props}");
+    assert!(spawn_props.get("effort").is_some(), "{spawn_props}");
+    let follow_props = &tools[7]["inputSchema"]["properties"];
+    assert!(follow_props.get("model").is_some(), "{follow_props}");
+    assert!(follow_props.get("effort").is_some(), "{follow_props}");
     let spawn = rpc.tool(
         "grok_spawn",
         json!({"prompt":"ping","cwd": cwd.path().to_str().unwrap()}),
@@ -501,13 +508,17 @@ fn crash_child_is_worker_gone_without_replay() {
         json!({"prompt":"hang","cwd": cwd.path().to_str().unwrap()}),
     );
     let turn_id = spawn["turn_id"].as_str().unwrap().to_string();
-    std::thread::sleep(std::time::Duration::from_millis(200));
     let ledger = Ledger::open(home.path().to_path_buf()).expect("ledger");
     let turn = ledger.read_turn(&turn_id).expect("turn");
-    let generation = ledger
-        .read_generation(&turn.generation_id)
-        .expect("generation");
-    let pid = generation.child_pid.expect("child_pid");
+    let pid = (0..50)
+        .find_map(|_| {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            ledger
+                .read_generation(&turn.generation_id)
+                .ok()
+                .and_then(|g| g.child_pid)
+        })
+        .expect("child_pid");
     assert!(Command::new("kill")
         .args(["-9", &pid.to_string()])
         .status()
@@ -541,4 +552,79 @@ fn crash_child_is_worker_gone_without_replay() {
         again["turn_id"], turn_id,
         "spawn must be a new turn, not replay"
     );
+}
+
+#[test]
+fn spawn_model_effort_and_followup_mismatch() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut rpc = Rpc::start(home.path().to_str().unwrap());
+    let _ = rpc.call(
+        "initialize",
+        json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
+    );
+    let blank = rpc.call(
+        "tools/call",
+        json!({
+            "name": "grok_spawn",
+            "arguments": {
+                "prompt": "x",
+                "cwd": cwd.path().to_str().unwrap(),
+                "model": "  "
+            }
+        }),
+    );
+    assert_eq!(blank["result"]["isError"], true);
+    let blank_text = blank["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(blank_text.contains("INVALID_CONFIG"), "{blank_text}");
+    let spawn = rpc.tool(
+        "grok_spawn",
+        json!({
+            "prompt": "one",
+            "cwd": cwd.path().to_str().unwrap(),
+            "model": "grok",
+            "effort": "low"
+        }),
+    );
+    let thread_id = spawn["thread_id"].as_str().unwrap().to_string();
+    let first = spawn["turn_id"].as_str().unwrap().to_string();
+    assert_eq!(
+        rpc.tool("grok_await", json!({"turn_id": first}))["status"],
+        "completed"
+    );
+    let ledger = Ledger::open(home.path().to_path_buf()).expect("ledger");
+    let thread = ledger.read_thread(&thread_id).unwrap();
+    assert_eq!(thread.model, "grok-4.6");
+    let turn = ledger.read_turn(&first).unwrap();
+    assert_eq!(turn.effort, "low");
+    let mismatch = rpc.call(
+        "tools/call",
+        json!({
+            "name": "grok_followup",
+            "arguments": {
+                "thread_id": thread_id,
+                "prompt": "two",
+                "model": "other"
+            }
+        }),
+    );
+    assert_eq!(mismatch["result"]["isError"], true);
+    let text = mismatch["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("INVALID_CONFIG"), "{text}");
+    let follow = rpc.tool(
+        "grok_followup",
+        json!({
+            "thread_id": thread_id,
+            "prompt": "two",
+            "effort": "high"
+        }),
+    );
+    let second = follow["turn_id"].as_str().unwrap();
+    assert_eq!(
+        rpc.tool("grok_await", json!({"turn_id": second}))["status"],
+        "completed"
+    );
+    let stored = ledger.read_turn(second).unwrap();
+    assert_eq!(stored.effort, "high");
+    assert_eq!(stored.model, "grok-4.6");
 }

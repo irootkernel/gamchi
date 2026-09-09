@@ -23,6 +23,11 @@ observer timeout, or `grok_wait` timeout as cancel.
 `grok_followup` starts a new turn on the same ACP session via `session/load`.
 Load replay is history, not new items or approvals. If `session/load` is not
 advertised, follow-up fails closed.
+Optional `model` and `effort` on `grok_spawn` and `grok_followup`. Omit them
+to use home `config.yaml` then `grok-4.6` / `high`. Present blank values are
+`INVALID_CONFIG`. Follow-up cannot change the thread model after `grok` →
+`grok-4.6` normalization. Recommend adding `.samchi-for-grok/` to the
+consumer project's `.gitignore`. Do not edit that file for the user.
 `grok_respond` answers a parked `session/request_permission`. `pending_approval`
 is not a TurnStatus; call `grok_respond` then `grok_await` again.
 
@@ -30,7 +35,8 @@ is not a TurnStatus; call `grok_respond` then `grok_await` again.
 
 1. Call `grok_spawn` exactly once. Preserve `thread_id` and `turn_id`.
    Omit approval/sandbox unless the user asked for read-only or gated
-   approvals. Default is write-capable implementation.
+   approvals. Default is write-capable implementation. Omit `model` /
+   `effort` unless the user named them.
 2. Call `grok_await` with that `turn_id`. Prefer a host-native wait that keeps
    the tool call pending until the turn is terminal.
 3. If the host returns a deferred execution handle or cell, wait only on that

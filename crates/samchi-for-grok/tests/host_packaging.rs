@@ -30,6 +30,8 @@ fn skill_states_async_host_contract() {
         "tool_timeout_sec = 3600",
         "Timeout does not cancel the turn",
         "Do not silently edit user config",
+        ".samchi-for-grok/",
+        "Do not edit that file for the user",
     ] {
         assert!(skill.contains(needle), "skill missing {needle:?}\n{skill}");
     }

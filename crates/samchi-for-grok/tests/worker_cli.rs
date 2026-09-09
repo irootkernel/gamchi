@@ -367,3 +367,81 @@ fn respond_accepts_pending_then_cancel() {
     assert!(cancel.status.success());
     let _ = child.wait();
 }
+
+#[test]
+fn start_model_effort_and_followup_mismatch() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let blank = Command::new(bin())
+        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .args([
+            "worker",
+            "start",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--cwd",
+            cwd.path().to_str().unwrap(),
+            "--model",
+            " ",
+            "ping",
+        ])
+        .output()
+        .expect("blank");
+    assert!(!blank.status.success());
+    assert!(
+        String::from_utf8_lossy(&blank.stderr).contains("INVALID_CONFIG"),
+        "stderr {}",
+        String::from_utf8_lossy(&blank.stderr)
+    );
+    let start = Command::new(bin())
+        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .args([
+            "worker",
+            "start",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--cwd",
+            cwd.path().to_str().unwrap(),
+            "--model",
+            "grok",
+            "--effort",
+            "low",
+            "one",
+        ])
+        .output()
+        .expect("start");
+    assert!(
+        start.status.success(),
+        "stderr {}",
+        String::from_utf8_lossy(&start.stderr)
+    );
+    let v: Value = serde_json::from_str(
+        String::from_utf8_lossy(&start.stdout)
+            .lines()
+            .next()
+            .unwrap(),
+    )
+    .unwrap();
+    let thread_id = v["thread_id"].as_str().unwrap();
+    let mismatch = Command::new(bin())
+        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .args([
+            "worker",
+            "followup",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--thread-id",
+            thread_id,
+            "--model",
+            "other",
+            "two",
+        ])
+        .output()
+        .expect("mismatch");
+    assert!(!mismatch.status.success());
+    let err = String::from_utf8_lossy(&mismatch.stderr);
+    assert!(err.contains("INVALID_CONFIG"), "{err}");
+}

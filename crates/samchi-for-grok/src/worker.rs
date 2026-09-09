@@ -1,7 +1,7 @@
 //! CLI worker facade. TASK-013 publishes respond with start/wait/status/result/list/cancel/followup.
 
-use crate::ops::{acp_command, bounded_turn_json, cancel_turn, turn_json};
-use samchi_adapter_grok::{run_turn_on_admit, ExtraSpawnFields, TurnRequest};
+use crate::ops::{bounded_turn_json, cancel_turn, followup_request, start_request, turn_json};
+use samchi_adapter_grok::run_turn_on_admit;
 use samchi_core::home::{resolve_home_from_os, HomeError};
 use samchi_core::ledger::{Ledger, LedgerError};
 use samchi_core::source_wire::{
@@ -15,13 +15,13 @@ use std::time::Duration;
 
 pub const WORKER_USAGE: &str = "\
 Usage:
-  samchi-for-grok worker start --json [--home <absolute-path>] [--cwd <absolute-path>] [--approval-policy <never|untrusted|on-request>] <prompt>
+  samchi-for-grok worker start --json [--home <absolute-path>] [--cwd <absolute-path>] [--approval-policy <never|untrusted|on-request>] [--model <id>] [--effort <id>] <prompt>
   samchi-for-grok worker wait --json --turn-id <id> [--home <absolute-path>] [--timeout-ms <1-50000>]
   samchi-for-grok worker status --json --turn-id <id> [--home <absolute-path>]
   samchi-for-grok worker result --json --turn-id <id> [--home <absolute-path>]
   samchi-for-grok worker list --json [--home <absolute-path>] [--cwd <absolute-path>]
   samchi-for-grok worker cancel --json --turn-id <id> [--home <absolute-path>]
-  samchi-for-grok worker followup --json --thread-id <id> [--home <absolute-path>] [--cwd <absolute-path>] <prompt>
+  samchi-for-grok worker followup --json --thread-id <id> [--home <absolute-path>] [--cwd <absolute-path>] [--model <id>] [--effort <id>] <prompt>
   samchi-for-grok worker respond --json --request-id <id> --decision <accept|acceptForSession|decline|cancel> [--home <absolute-path>]
 ";
 
@@ -87,19 +87,15 @@ fn cmd_start(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u
         Ok(l) => Arc::new(l),
         Err(err) => return ledger_err(stderr, err),
     };
-    let req = TurnRequest {
+    let req = start_request(
         cwd,
-        prompt: parsed.prompt,
-        approval: parsed.approval,
-        sandbox: ThreadSandbox::WorkspaceWrite,
-        extra: ExtraSpawnFields::default(),
-        model: "grok".to_string(),
-        effort: String::new(),
-        command: acp_command(),
-        client_request_id: None,
-        follow_up_thread_id: None,
-        reuse_thread_id: None,
-    };
+        parsed.prompt,
+        parsed.approval,
+        ThreadSandbox::WorkspaceWrite,
+        parsed.model,
+        parsed.effort,
+        None,
+    );
     let printed = std::sync::Mutex::new(false);
     let result = run_turn_on_admit(ledger, &req, |turn| {
         let ids = json!({"thread_id": turn.thread_id, "turn_id": turn.id});
@@ -230,23 +226,13 @@ fn cmd_followup(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -
         write_all(stderr, "follow-up requires a stored ACP session id\n");
         return 1;
     }
-    let cwd = match parsed.cwd {
-        Some(p) => p,
-        None => PathBuf::from(&thread.cwd),
-    };
-    let req = TurnRequest {
-        cwd,
-        prompt: parsed.prompt,
-        approval: thread.approval_policy,
-        sandbox: thread.sandbox,
-        extra: ExtraSpawnFields::default(),
-        model: thread.model,
-        effort: String::new(),
-        command: acp_command(),
-        client_request_id: None,
-        follow_up_thread_id: Some(thread.id),
-        reuse_thread_id: None,
-    };
+    let req = followup_request(
+        &thread,
+        parsed.prompt,
+        parsed.model,
+        parsed.effort,
+        parsed.cwd,
+    );
     let printed = std::sync::Mutex::new(false);
     let result = run_turn_on_admit(Arc::new(ledger), &req, |turn| {
         let ids = json!({"thread_id": turn.thread_id, "turn_id": turn.id});
@@ -386,6 +372,8 @@ struct Flags {
     approval: ApprovalPolicy,
     request_id: String,
     decision: String,
+    model: String,
+    effort: String,
 }
 
 fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
@@ -398,6 +386,8 @@ fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
     let mut approval = ApprovalPolicy::Never;
     let mut request_id = String::new();
     let mut decision = String::new();
+    let mut model = String::new();
+    let mut effort = String::new();
     let mut i = 0;
     let mut prompt_parts = Vec::new();
     while i < args.len() {
@@ -437,6 +427,20 @@ fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
                 i += 1;
                 decision = args.get(i).ok_or(1u8)?.to_string();
             }
+            "--model" => {
+                i += 1;
+                model = args.get(i).ok_or(1u8)?.to_string();
+                if model.trim().is_empty() {
+                    return Err(1);
+                }
+            }
+            "--effort" => {
+                i += 1;
+                effort = args.get(i).ok_or(1u8)?.to_string();
+                if effort.trim().is_empty() {
+                    return Err(1);
+                }
+            }
             "--" => {
                 prompt_parts.extend(args[i + 1..].iter().map(|s| (*s).to_string()));
                 break;
@@ -458,6 +462,8 @@ fn parse_flags(args: &[&str], take_prompt: bool) -> Result<Flags, u8> {
         approval,
         request_id,
         decision,
+        model,
+        effort,
     })
 }
 

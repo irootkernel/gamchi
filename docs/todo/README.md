@@ -22,9 +22,6 @@ Future candidates (not lifecycle):
   validation Low F004). Re-enter if a consumer needs load-replay
   history merged without duplicating items. TASK-012 acceptance still
   holds: replay is history, not new items or approvals.
-- Share follow-up `TurnRequest` assembly between the MCP and CLI
-  facades (EPIC-004 confirmation Low F001). Re-enter when changing
-  follow-up spawn fields so the two copies cannot diverge.
 - Extract the MCP JSON-RPC test `Rpc` harness shared by `mcp_stdio`
   and the live_* tests (EPIC-004 confirmation Low F002). Re-enter
   when adding another MCP stdio test that would copy the child

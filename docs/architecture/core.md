@@ -88,7 +88,10 @@ gate spawn.
 ACP `fs/read_text_file` and `fs/write_text_file` stay inside the turn cwd.
 TASK-008 publishes CLI worker start/wait/status/result/list. TASK-009
 publishes MCP stdio six tools (`grok_spawn` returns immediately; the MCP
-process owns the child). TASK-010 ships `use-samchi-for-grok` and Codex/Claude
+process owns the child). TASK-025 publishes optional `model` / `effort` on
+MCP `grok_spawn` / `grok_followup` and CLI `worker start` / `followup`.
+Follow-up model mismatch fails closed. The skill recommends gitignoring
+`.samchi-for-grok/` and does not edit that file. TASK-010 ships `use-samchi-for-grok` and Codex/Claude
 snippets (`tool_timeout_sec = 3600`); copy them only when the user asks.
 TASK-011 publishes MCP `grok_cancel` and CLI `worker cancel`: process-group
 teardown of the `grok agent stdio` child, TurnStatus `interrupted`. Host

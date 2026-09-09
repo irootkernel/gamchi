@@ -213,6 +213,8 @@ mod tests {
         assert!(USAGE.contains("respond"));
         assert!(worker::WORKER_USAGE.contains("worker respond --json"));
         assert!(worker::WORKER_USAGE.contains("worker start --json"));
+        assert!(worker::WORKER_USAGE.contains("[--model <id>]"));
+        assert!(worker::WORKER_USAGE.contains("[--effort <id>]"));
         assert!(worker::WORKER_USAGE.contains("worker wait --json"));
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();

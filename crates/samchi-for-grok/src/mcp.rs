@@ -1,11 +1,10 @@
 //! MCP stdio facade. TASK-013 publishes grok_respond; spawn still returns immediately.
 
 use crate::ops::{
-    acp_command, bounded_turn_json, cancel_turn, open_home, open_ledger, turn_json, MAX_WAIT_MS,
+    admit_in_background, bounded_turn_json, cancel_turn, followup_request, open_home, open_ledger,
+    optional_text_field, start_request, turn_json, MAX_WAIT_MS,
 };
-use samchi_adapter_grok::{
-    run_turn_on_admit, ExtraSpawnFields, TurnRequest, UNENFORCEABLE_EXTRA_FIELD_NAMES,
-};
+use samchi_adapter_grok::UNENFORCEABLE_EXTRA_FIELD_NAMES;
 use samchi_core::source_wire::{
     parse_approval_decision, parse_approval_policy, parse_thread_sandbox, ApprovalPolicy,
     ThreadSandbox,
@@ -13,9 +12,7 @@ use samchi_core::source_wire::{
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 
 const PROTOCOL: &str = "2024-11-05";
@@ -139,6 +136,8 @@ fn spawn_schema() -> Value {
             "home": {"type": "string"},
             "approvalPolicy": {"type": "string"},
             "sandbox": {"type": "string"},
+            "model": {"type": "string"},
+            "effort": {"type": "string"},
             "client_request_id": {"type": "string"}
         },
         "required": ["prompt"]
@@ -190,7 +189,9 @@ fn followup_schema() -> Value {
         "properties": {
             "thread_id": {"type": "string"},
             "prompt": {"type": "string"},
-            "home": {"type": "string"}
+            "home": {"type": "string"},
+            "model": {"type": "string"},
+            "effort": {"type": "string"}
         },
         "required": ["thread_id", "prompt"]
     })
@@ -252,30 +253,19 @@ fn spawn(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
         .get("client_request_id")
         .and_then(Value::as_str)
         .map(str::to_string);
+    let model = optional_text_field(args, "model")?;
+    let effort = optional_text_field(args, "effort")?;
     let ledger = Arc::new(open_ledger(Some(home.as_path()))?);
-    let req = TurnRequest {
+    let req = start_request(
         cwd,
         prompt,
         approval,
         sandbox,
-        extra: ExtraSpawnFields::default(),
-        model: "grok".to_string(),
-        effort: String::new(),
-        command: acp_command(),
+        model,
+        effort,
         client_request_id,
-        follow_up_thread_id: None,
-        reuse_thread_id: None,
-    };
-    let (tx, rx) = mpsc::sync_channel(1);
-    let ledger_bg = ledger.clone();
-    thread::spawn(move || {
-        let _ = run_turn_on_admit(ledger_bg, &req, |turn| {
-            let _ = tx.send((turn.thread_id.clone(), turn.id.clone()));
-        });
-    });
-    let (thread_id, turn_id) = rx
-        .recv_timeout(Duration::from_secs(30))
-        .map_err(|_| "spawn did not admit a turn".to_string())?;
+    );
+    let (thread_id, turn_id) = admit_in_background(ledger, req)?;
     Ok(json!({"thread_id": thread_id, "turn_id": turn_id}))
 }
 
@@ -367,30 +357,10 @@ fn followup(args: &Value, cli_home: Option<&Path>) -> Result<Value, String> {
     if thread.acp_session_id.is_empty() {
         return Err("follow-up requires a stored ACP session id".to_string());
     }
-    let cwd = PathBuf::from(&thread.cwd);
-    let req = TurnRequest {
-        cwd,
-        prompt,
-        approval: thread.approval_policy,
-        sandbox: thread.sandbox,
-        extra: ExtraSpawnFields::default(),
-        model: thread.model,
-        effort: String::new(),
-        command: acp_command(),
-        client_request_id: None,
-        follow_up_thread_id: Some(thread_id),
-        reuse_thread_id: None,
-    };
-    let (tx, rx) = mpsc::sync_channel(1);
-    let ledger_bg = ledger.clone();
-    thread::spawn(move || {
-        let _ = run_turn_on_admit(ledger_bg, &req, |turn| {
-            let _ = tx.send((turn.thread_id.clone(), turn.id.clone()));
-        });
-    });
-    let (thread_id, turn_id) = rx
-        .recv_timeout(Duration::from_secs(30))
-        .map_err(|_| "follow-up did not admit a turn".to_string())?;
+    let model = optional_text_field(args, "model")?;
+    let effort = optional_text_field(args, "effort")?;
+    let req = followup_request(&thread, prompt, model, effort, None);
+    let (thread_id, turn_id) = admit_in_background(ledger, req)?;
     Ok(json!({"thread_id": thread_id, "turn_id": turn_id}))
 }
 

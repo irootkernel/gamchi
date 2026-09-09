@@ -71,14 +71,14 @@ not-implemented is not done.
 
 | Tool | When published | Behavior |
 | --- | --- | --- |
-| `grok_spawn` | TASK-009 | MCP only: returns ids immediately. Owner = this MCP server. Optional `model` / `effort` (TASK-025). |
+| `grok_spawn` | TASK-009 | MCP only: returns ids immediately. Owner = this MCP server. Optional `model` / `effort` published TASK-025. |
 | `grok_await` | TASK-009 | No samchi-for-grok timeout. Returns on terminal TurnStatus, or `await_reason: pending_approval`. |
 | `grok_wait` | TASK-009 | Default and max `timeout_ms` 50000 (under a typical 60s host tool deadline, same cap as Gaori). Timeout does **not** cancel the turn. |
 | `grok_status` | TASK-009 | One snapshot. |
 | `grok_result` | TASK-009 | Terminal envelope, or `not_ready`. Truncation: see Result bounds. |
 | `grok_list` | TASK-009 | Recent turns from the disk ledger. |
 | `grok_cancel` | TASK-011 | Process-group teardown → TurnStatus `interrupted`. |
-| `grok_followup` | TASK-012 | New turn, same ACP session (`session/load`). Optional `model` / `effort` (TASK-025). Model mismatch refuses. |
+| `grok_followup` | TASK-012 | New turn, same ACP session (`session/load`). Optional `model` / `effort` published TASK-025. Model mismatch refuses. |
 | `grok_respond` | TASK-013 | ACP `session/request_permission` decision. Then `grok_await` again. |
 
 TASK-009 smoke is **six** MCP tools. CLI TASK-008: `start` (print ids, stay
@@ -88,8 +88,8 @@ appear on CLI when those Tasks land.
 
 ## Model and effort fields
 
-`grok_spawn` and CLI `worker start` accept optional `model` and `effort`
-(TASK-025 publishes the wire). Omitted fields use the cascade in
+`grok_spawn` and CLI `worker start` accept optional `model` and `effort`.
+Omitted fields use the cascade in
 [grok-launch.md](grok-launch.md). Present blank or whitespace is
 `INVALID_CONFIG`. The resolved pair is passed to Grok; child start
 failure is the error. `grok models` does not gate spawn.
