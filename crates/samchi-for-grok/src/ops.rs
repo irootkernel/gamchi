@@ -3,7 +3,7 @@
 use samchi_adapter_grok::{teardown_process_group, AgentCommand};
 use samchi_core::home::resolve_home_from_os;
 use samchi_core::ledger::Ledger;
-use samchi_core::source_wire::Turn;
+use samchi_core::source_wire::{Turn, TurnStatus};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -32,8 +32,14 @@ pub fn open_ledger(explicit: Option<&Path>) -> Result<Ledger, String> {
 }
 
 /// Publish `interrupted` then tear down the Grok child process group.
+/// Already-terminal turns stay unchanged and do not signal a stored pid
+/// (that pid may already have been reaped and reused).
 pub fn cancel_turn(ledger: &Ledger, turn_id: &str) -> Result<Turn, String> {
+    let prior = ledger.read_turn(turn_id).map_err(|e| e.to_string())?;
     let turn = ledger.cancel(turn_id).map_err(|e| e.to_string())?;
+    if prior.status.is_terminal() || turn.status != TurnStatus::Interrupted {
+        return Ok(turn);
+    }
     if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
         if let Some(pid) = generation.child_pid {
             teardown_process_group(pid);

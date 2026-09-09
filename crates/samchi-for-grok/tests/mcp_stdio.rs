@@ -315,6 +315,76 @@ fn grok_cancel_interrupts_hanging_fake_agent() {
 }
 
 #[test]
+fn grok_cancel_before_child_pid_still_interrupts() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut rpc = Rpc::start_hang(home.path().to_str().unwrap());
+    let _ = rpc.call(
+        "initialize",
+        json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
+    );
+    let spawn = rpc.tool(
+        "grok_spawn",
+        json!({"prompt":"hang","cwd": cwd.path().to_str().unwrap()}),
+    );
+    let turn_id = spawn["turn_id"].as_str().unwrap().to_string();
+    let cancelled = rpc.tool("grok_cancel", json!({"turn_id": turn_id}));
+    assert_eq!(
+        cancelled["status"], "interrupted",
+        "immediate cancel {cancelled}"
+    );
+    let done = rpc.tool("grok_await", json!({"turn_id": turn_id}));
+    assert_eq!(done["status"], "interrupted");
+    let ledger = Ledger::open(home.path().to_path_buf()).expect("ledger");
+    let turn = ledger.read_turn(&turn_id).expect("turn");
+    if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
+        if let Some(pid) = generation.child_pid {
+            let alive = Command::new("kill")
+                .args(["-0", &pid.to_string()])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .expect("kill -0")
+                .success();
+            assert!(!alive, "cancelled child {pid} must not keep running");
+        }
+    }
+}
+
+#[test]
+fn grok_cancel_of_terminal_turn_does_not_signal_stored_pid() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut rpc = Rpc::start(home.path().to_str().unwrap());
+    let _ = rpc.call(
+        "initialize",
+        json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
+    );
+    let spawn = rpc.tool(
+        "grok_spawn",
+        json!({"prompt":"ping","cwd": cwd.path().to_str().unwrap()}),
+    );
+    let turn_id = spawn["turn_id"].as_str().unwrap().to_string();
+    let done = rpc.tool("grok_await", json!({"turn_id": turn_id}));
+    assert_eq!(done["status"], "completed");
+    let ledger = Ledger::open(home.path().to_path_buf()).expect("ledger");
+    let turn = ledger.read_turn(&turn_id).expect("turn");
+    let mut decoy = Command::new("sleep").arg("60").spawn().expect("decoy");
+    ledger
+        .set_child_pid(&turn.generation_id, decoy.id())
+        .expect("decoy pid");
+    let cancelled = rpc.tool("grok_cancel", json!({"turn_id": turn_id}));
+    assert_eq!(cancelled["status"], "completed");
+    let still = decoy.try_wait().expect("try_wait");
+    assert!(
+        still.is_none(),
+        "already-terminal cancel must not kill a stored pid"
+    );
+    let _ = decoy.kill();
+    let _ = decoy.wait();
+}
+
+#[test]
 fn grok_followup_second_turn_same_session() {
     let home = tempfile::tempdir().expect("home");
     let cwd = tempfile::tempdir().expect("cwd");

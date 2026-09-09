@@ -2,6 +2,7 @@
 
 use crate::launch::{plan_launch, ExtraSpawnFields, LaunchError, LaunchPlan, LaunchRequest};
 use crate::map::Mapper;
+use crate::teardown::teardown_process_group;
 use agent_client_protocol::schema::v1::{
     ClientCapabilities, ContentBlock, FileSystemCapabilities, InitializeRequest,
     LoadSessionRequest, NewSessionRequest, PermissionOptionKind, PromptRequest,
@@ -219,6 +220,15 @@ async fn run_turn_async(
     let mut child = cmd.spawn().map_err(AdapterError::Io)?;
     let child_pid = child.id();
     ledger.set_child_pid(&generation_id, child_pid)?;
+    if ledger.read_turn(&turn_id)?.status.is_terminal() {
+        teardown_process_group(child_pid);
+        let _ = child.kill();
+        return Ok(TurnOutcome {
+            turn: ledger.read_turn(&turn_id)?,
+            files_changed: Vec::new(),
+            files_changed_complete: false,
+        });
+    }
 
     let stdin = child
         .stdin
