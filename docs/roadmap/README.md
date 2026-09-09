@@ -53,7 +53,7 @@ Next eligible Task: `TASK-015` (EPIC-005).
 | Phase | Outcome | Status | Epics |
 | --- | --- | --- | --- |
 | Phase 1 — Contract and feasibility | Test gate, internal thread/turn/item types, ACP go/no-go | `Completed` | EPIC-001..EPIC-002 |
-| Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `In Progress` | EPIC-003..EPIC-004 |
+| Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `Completed` | EPIC-003..EPIC-004 |
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Planned` | EPIC-005 |
 
 ## EPIC-001: Foundation
@@ -118,11 +118,20 @@ process lifetimes differ** (see [MCP async host contract](../specs/mcp-async-hos
 
 ## EPIC-004: Supervision
 
-Status: `In Progress`
+Status: `Completed`
 
 Depends on: EPIC-003
 
-Detailed SOT: [TODO-EPIC-004.md](../todo/TODO-EPIC-004.md)
+Canonical Outcomes: cancel / process-group teardown
+([mcp-async-host-contract.md](../specs/mcp-async-host-contract.md));
+follow-up `session/load` history
+([acp-item-mapping.md](../specs/acp-item-mapping.md),
+[mcp-async-host-contract.md](../specs/mcp-async-host-contract.md));
+optional `grok_respond` / `pending_approval`
+([mcp-async-host-contract.md](../specs/mcp-async-host-contract.md),
+[grok-launch.md](../specs/grok-launch.md));
+crash is observation-only `worker_gone`
+([mcp-async-host-contract.md](../specs/mcp-async-host-contract.md)).
 
 Make the worker supervisable. No app-server socket yet. MCP already has a
 long-lived server process; that is not a Dolgorae unix socket.
