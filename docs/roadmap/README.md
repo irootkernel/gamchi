@@ -149,6 +149,8 @@ Status: `Planned`
 
 Depends on: EPIC-004
 
+Detailed SOT: [TODO-EPIC-005.md](../todo/TODO-EPIC-005.md)
+
 Layer the CCAS standard wire on the same worker. No new runtime.
 
 | Task | Title | Status | Depends on | Done when |
