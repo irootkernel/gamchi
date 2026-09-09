@@ -350,17 +350,27 @@ impl Ledger {
         Ok(thread)
     }
 
-    /// Publish `interrupted` if the turn is still in progress. An already
-    /// terminal record is returned unchanged (idempotent; first terminal wins).
+    /// Publish `interrupted` if the turn is still in progress. Converge a dead
+    /// generation to `failed`/`worker_gone` first so crash is not recorded as
+    /// cancel. An already terminal record is returned unchanged (idempotent;
+    /// first terminal wins).
     pub fn cancel(&self, turn_id: &str) -> Result<Turn, LedgerError> {
         validate_id(turn_id)?;
         let turn = self.read_turn(turn_id)?;
         let _lock = lock_exclusive(&self.thread_lock_path(&turn.thread_id))?;
-        let turn = self.read_turn(turn_id)?;
+        let turn = self.observe_locked(turn_id)?;
         if turn.status.is_terminal() {
             return Ok(turn);
         }
         self.publish_terminal_locked(&turn, TurnStatus::Interrupted, "cancelled", "")
+    }
+
+    /// Whether `generation.child_pid` still names the child from that start epoch.
+    pub fn recorded_child_is_alive(generation: &Generation) -> bool {
+        match generation.child_pid {
+            Some(pid) => process_alive(pid, generation.child_started_epoch),
+            None => false,
+        }
     }
 
     /// Park `session/request_permission` and wake awaiters with pending_approval.
@@ -1274,6 +1284,45 @@ mod tests {
         let after = ledger.cancel(&turn.id).unwrap();
         assert_eq!(after.status, TurnStatus::Failed);
         assert_eq!(after.failure_reason, FAILURE_WORKER_GONE);
+    }
+
+    #[test]
+    fn cancel_observes_dead_child_as_worker_gone() {
+        let (_dir, ledger) = open_tmp();
+        let thread = ledger.create_thread(&sample_thread("/work")).unwrap();
+        let turn = ledger.admit_turn(&sample_turn(&thread.id, None)).unwrap();
+        let mut child = std::process::Command::new("sleep")
+            .arg("60")
+            .spawn()
+            .unwrap();
+        ledger
+            .set_child_pid(&turn.generation_id, child.id())
+            .unwrap();
+        child.kill().unwrap();
+        child.wait().unwrap();
+        let cancelled = ledger.cancel(&turn.id).unwrap();
+        assert_eq!(cancelled.status, TurnStatus::Failed);
+        assert_eq!(cancelled.failure_reason, FAILURE_WORKER_GONE);
+        assert_ne!(cancelled.status, TurnStatus::Interrupted);
+    }
+
+    #[test]
+    fn recorded_child_is_alive_uses_start_epoch() {
+        let (_dir, ledger) = open_tmp();
+        let thread = ledger.create_thread(&sample_thread("/work")).unwrap();
+        let turn = ledger.admit_turn(&sample_turn(&thread.id, None)).unwrap();
+        let mut child = std::process::Command::new("sleep")
+            .arg("60")
+            .spawn()
+            .unwrap();
+        let generation = ledger
+            .set_child_pid(&turn.generation_id, child.id())
+            .unwrap();
+        assert!(Ledger::recorded_child_is_alive(&generation));
+        child.kill().unwrap();
+        child.wait().unwrap();
+        let generation = ledger.read_generation(&turn.generation_id).unwrap();
+        assert!(!Ledger::recorded_child_is_alive(&generation));
     }
 
     #[test]

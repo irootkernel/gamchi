@@ -32,17 +32,19 @@ pub fn open_ledger(explicit: Option<&Path>) -> Result<Ledger, String> {
 }
 
 /// Publish `interrupted` then tear down the Grok child process group.
-/// Already-terminal turns stay unchanged and do not signal a stored pid
-/// (that pid may already have been reaped and reused).
+/// Dead generations converge to `failed`/`worker_gone` first. Teardown runs
+/// only when this call publishes interrupted and the recorded child pid still
+/// matches that start epoch.
 pub fn cancel_turn(ledger: &Ledger, turn_id: &str) -> Result<Turn, String> {
-    let prior = ledger.read_turn(turn_id).map_err(|e| e.to_string())?;
     let turn = ledger.cancel(turn_id).map_err(|e| e.to_string())?;
-    if prior.status.is_terminal() || turn.status != TurnStatus::Interrupted {
+    if turn.status != TurnStatus::Interrupted {
         return Ok(turn);
     }
     if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
         if let Some(pid) = generation.child_pid {
-            teardown_process_group(pid);
+            if Ledger::recorded_child_is_alive(&generation) {
+                teardown_process_group(pid);
+            }
         }
     }
     ledger.read_turn(turn_id).map_err(|e| e.to_string())
