@@ -112,7 +112,9 @@ occupied path. TASK-016 publishes honest JSON-RPC `initialize` /
 `capabilities.ccas` is JSON-RPC `-32602`. TASK-026 may advertise live
 or fixture Grok ids on `model/list`; listing failure still returns the
 stub row and is not a spawn gate. Omitted `thread/start` model uses the
-MCP cascade. `turn/start` model change fails closed; effort may change. TASK-017 publishes
+MCP cascade. `turn/start` model change fails closed; effort may change.
+TASK-027's ignored `live_model` test proves the requested pair on the child
+argv. TASK-017 publishes
 `thread/start`, `thread/resume`, `thread/read`, `turn/start`, and
 `turn/interrupt` on the same worker ledger as MCP spawn. Omitted socket
 sandbox and approvalPolicy stay `read-only` and `untrusted`. `thread/fork`
