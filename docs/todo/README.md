@@ -30,3 +30,20 @@ Future candidates (not lifecycle):
   instead of start time (EPIC-006 validation Low F002). Re-enter
   if omitted follow-up effort must stay correct for sub-second or
   cross-process turns. TASK-025 sequential follow-up still holds.
+- Add a unit test that a duplicate `default_model` or
+  `default_effort` key in home `config.yaml` is `INVALID_CONFIG`
+  (EPIC-006 confirmation Low F001). Re-enter when extending the
+  YAML parser. TASK-024 blank-vs-absent still holds.
+- Move `previous_turn_effort` into the ledger as a thread-scoped
+  query (EPIC-006 confirmation Low F003). Re-enter if adapter-layer
+  turn scans become a maintenance cost. TASK-025 follow-up still
+  holds.
+- Assert ACP capture `model_id` in the ignored `live_model` test
+  (EPIC-006 confirmation Low F004). Re-enter if a consumer needs
+  session/update model bytes beyond stored `turn.model`. TASK-027
+  argv proof still holds.
+- Add a test that a broken `SAMCHI_FOR_GROK_MODEL_LIST_FIXTURE`
+  still returns the stub `model/list` row (EPIC-006 confirmation
+  Low F007). Re-enter when changing advertisement fallback.
+  TASK-026 listing-is-not-a-spawn-gate still holds.
+  The confirmation review predates this note.
