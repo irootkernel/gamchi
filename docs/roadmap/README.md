@@ -54,7 +54,7 @@ Next eligible Task: none.
 | --- | --- | --- | --- |
 | Phase 1 — Contract and feasibility | Test gate, internal thread/turn/item types, ACP go/no-go | `Completed` | EPIC-001..EPIC-002 |
 | Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `Completed` | EPIC-003..EPIC-004 |
-| Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Planned` | EPIC-005 |
+| Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Completed` | EPIC-005 |
 
 ## EPIC-001: Foundation
 
@@ -145,11 +145,20 @@ long-lived server process; that is not a Dolgorae unix socket.
 
 ## EPIC-005: App-server wire
 
-Status: `In Progress`
+Status: `Completed`
 
 Depends on: EPIC-004
 
-Detailed SOT: [TODO-EPIC-005.md](../todo/TODO-EPIC-005.md)
+Canonical Outcomes: `app-server --listen unix://` HTTP/WS upgrade and occupied-path fail-closed
+([protocol/README.md](../protocol/README.md));
+honest `userAgent=samchi-for-grok/app-server-v1` and `capabilities.ccas` `-32602`
+([architecture/core.md](../architecture/core.md));
+same-ledger thread/turn with omitted socket `read-only`/`untrusted`
+([mcp-async-host-contract.md](../specs/mcp-async-host-contract.md));
+notifications and socket `requestApproval`
+([acp-item-mapping.md](../specs/acp-item-mapping.md));
+five named Dolgorae-shaped scenarios and `grok/runtime/read`
+([protocol/README.md](../protocol/README.md)).
 
 Layer the CCAS standard wire on the same worker. No new runtime.
 

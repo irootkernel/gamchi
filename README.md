@@ -33,8 +33,9 @@ Dolgorae.
 
 ## Status
 
-See [docs/roadmap/README.md](docs/roadmap/README.md). TASK-019 named five
-consumer scenarios and published `grok/runtime/read`. ACP go is
+See [docs/roadmap/README.md](docs/roadmap/README.md). EPIC-005 published the
+CCAS-shaped app-server, five named consumer scenarios, and `grok/runtime/read`.
+ACP go is
 [ADR-0002](docs/architecture-decision-records/0002-grok-agent-stdio.md).
 The TASK-004 live `grok agent stdio` capture is
 [crates/adapter-grok/captures/task-004](crates/adapter-grok/captures/task-004).

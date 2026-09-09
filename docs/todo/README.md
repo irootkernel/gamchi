@@ -5,8 +5,7 @@ Language: English.
 Future epic-sized candidates and temporary execution dossiers. This index
 does not own roadmap identity or lifecycle status.
 
-Current execution dossier: [TODO-EPIC-005.md](TODO-EPIC-005.md) (EPIC-005
-App-server wire). This index does not record lifecycle status.
+No current execution dossier. This index does not record lifecycle status.
 
 Future candidates (not lifecycle):
 
