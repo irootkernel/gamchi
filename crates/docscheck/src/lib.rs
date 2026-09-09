@@ -337,7 +337,10 @@ mod tests {
 
     #[test]
     fn rejects_two_active_tasks() {
-        let body = checked_in();
+        let mut body = checked_in();
+        body.push_str(
+            "\n| [TASK-099](#epic-001-foundation) | extra | `Planned` | TASK-003 | extra |\n",
+        );
         const NEEDLE: &str = "| `Planned` | TASK-";
         assert!(body.contains(NEEDLE), "need a Planned task row to promote");
         let body = body.replacen(NEEDLE, "| `In Progress` | TASK-", 1);
@@ -366,8 +369,9 @@ mod tests {
         assert_eq!(task_status(&body, "016").as_deref(), Some("Completed"));
         assert_eq!(task_status(&body, "017").as_deref(), Some("Completed"));
         assert_eq!(task_status(&body, "018").as_deref(), Some("Completed"));
+        assert_eq!(task_status(&body, "019").as_deref(), Some("Completed"));
         assert_eq!(current_task(&body).as_deref(), Some("none"));
-        assert_eq!(next_eligible_task(&body).as_deref(), Some("TASK-019"));
+        assert_eq!(next_eligible_task(&body).as_deref(), Some("none"));
         assert_eq!(epic_status(&body, "EPIC-002").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-003").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-004").as_deref(), Some("Completed"));

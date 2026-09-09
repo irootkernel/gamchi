@@ -82,6 +82,45 @@ A valid upgrade replies `HTTP/1.1 101 Switching Protocols` with
 `Upgrade: websocket`, `Connection: Upgrade`, and `Sec-WebSocket-Accept`.
 Occupied Unix listen paths fail closed and are not unlinked.
 
+## Consumer scenarios (TASK-019)
+
+A Dolgorae-**shaped** client, not a Dolgorae Profile, proves these five named
+scenarios offline against `samchi-for-grok app-server`. Live Grok is not
+required. `thread/fork` stays fail-closed; ADR-0002 did not decide it and
+TASK-019 recorded no new capture.
+
+| Name | Client sequence | Passes when |
+| --- | --- | --- |
+| `probe` | `initialize`, `initialized`, `account/read`, `model/list`, `grok/runtime/read`; `thread/read` of an absent id | Honest identity; `grok/runtime/read` shape; absent thread is JSON-RPC `-32600` |
+| `first-turn` | `thread/start` + `turn/start` | `thread/started` then item and `turn/completed` notifications; omitted socket defaults stay `read-only` / `untrusted` |
+| `follow-up` | `thread/resume` then a second `turn/start` on the same thread after the first is terminal | New turn on the same ledger thread |
+| `approval` | untrusted turn parks on `requestApproval`; client `{decision}` | Socket server request, not MCP `grok_respond`; `turn/completed` after accept |
+| `interrupt` | `turn/interrupt` of `inProgress`; `thread/fork` | `turn/completed` interrupted; fork remains `-32602` |
+
+## grok/runtime/read
+
+Grok facade method. Not a subset client method and not in `samchi-core`.
+JSON-RPC objects omit the `jsonrpc` member.
+
+Request: `{ "id": <integer or string>, "method": "grok/runtime/read", "params": {} }`.
+Non-empty `params` is JSON-RPC `-32602`.
+
+Result:
+
+```text
+{
+  "runtime": "grok",
+  "userAgent": "samchi-for-grok/app-server-v1",
+  "home": "<absolute ledger home>"
+}
+```
+
+`runtime` is the Grok identity. `userAgent` matches `initialize`. `home` is
+the resolved ledger root (`--home`, then `SAMCHI_FOR_GROK_HOME`, then
+`~/.samchi-for-grok`). Absent `thread/read` is JSON-RPC `-32600` from the
+typed ledger `NotFound` (not from other `thread/read` param errors, which
+stay `-32602`). Other methods keep the existing `-32602` fail-closed mapping.
+
 ## Internal types
 
 Rust types in `crates/core` (`source_wire`) close what the **subset bytes actually name**:

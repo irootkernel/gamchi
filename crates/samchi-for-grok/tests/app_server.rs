@@ -690,3 +690,366 @@ fn interrupt_during_approval_emits_turn_completed() {
     assert!(interrupted, "expected turn/completed after interrupt");
     stop(&mut child, &sock);
 }
+
+fn notify(stream: &mut UnixStream, method: &str, params: serde_json::Value) {
+    let req = serde_json::json!({"method": method, "params": params});
+    stream
+        .write_all(&client_text_frame(req.to_string().as_bytes()))
+        .unwrap();
+}
+
+fn wait_method(stream: &mut UnixStream, want: &str) -> serde_json::Value {
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while Instant::now() < deadline {
+        let msg = read_json(stream);
+        if msg.get("method").and_then(|m| m.as_str()) == Some(want) {
+            return msg;
+        }
+    }
+    panic!("timed out waiting for {want}");
+}
+
+fn shaped_handshake(stream: &mut UnixStream) -> serde_json::Value {
+    rpc_call(
+        stream,
+        1,
+        "initialize",
+        serde_json::json!({
+            "clientInfo": {"name": "dolgorae-shaped", "version": "0"},
+            "capabilities": {"experimentalApi": false, "optOutNotificationMethods": []}
+        }),
+    )
+}
+
+/// TASK-019 scenario `probe`.
+#[test]
+fn shaped_client_probe() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen(&url, Some(home.path()));
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    let init = shaped_handshake(&mut stream);
+    assert_eq!(init["result"]["userAgent"], "samchi-for-grok/app-server-v1");
+    assert!(init.get("jsonrpc").is_none());
+    notify(&mut stream, "initialized", serde_json::json!({}));
+    let account = rpc_call(
+        &mut stream,
+        2,
+        "account/read",
+        serde_json::json!({"refreshToken": false}),
+    );
+    assert_eq!(account["result"]["requiresOpenaiAuth"], false);
+    let models = rpc_call(
+        &mut stream,
+        3,
+        "model/list",
+        serde_json::json!({"cursor": serde_json::Value::Null, "limit": 100}),
+    );
+    assert_eq!(models["result"]["data"][0]["model"], "grok");
+    assert_eq!(models["result"]["data"][0]["isDefault"], true);
+    assert!(models["result"]["data"][0]["supportedReasoningEfforts"].is_array());
+    let runtime = rpc_call(&mut stream, 4, "grok/runtime/read", serde_json::json!({}));
+    assert_eq!(runtime["result"]["runtime"], "grok");
+    assert_eq!(
+        runtime["result"]["userAgent"],
+        "samchi-for-grok/app-server-v1"
+    );
+    assert_eq!(
+        runtime["result"]["home"].as_str().unwrap(),
+        home.path().display().to_string()
+    );
+    let absent = rpc_call(
+        &mut stream,
+        5,
+        "thread/read",
+        serde_json::json!({
+            "threadId": "01900000-0000-7000-8000-000000000000",
+            "includeTurns": true
+        }),
+    );
+    assert_eq!(absent["error"]["code"], -32600);
+    stop(&mut child, &sock);
+}
+
+#[test]
+fn grok_runtime_read_home_follows_env() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen_with(
+        &url,
+        None,
+        &[("SAMCHI_FOR_GROK_HOME", home.path().to_str().unwrap())],
+    );
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    let _ = shaped_handshake(&mut stream);
+    let runtime = rpc_call(&mut stream, 2, "grok/runtime/read", serde_json::json!({}));
+    assert_eq!(
+        runtime["result"]["home"].as_str().unwrap(),
+        home.path().display().to_string()
+    );
+    stop(&mut child, &sock);
+}
+
+/// TASK-019 scenario `first-turn`.
+#[test]
+fn shaped_client_first_turn() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen(&url, Some(home.path()));
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    let _ = shaped_handshake(&mut stream);
+    notify(&mut stream, "initialized", serde_json::json!({}));
+    let started = rpc_call(
+        &mut stream,
+        2,
+        "thread/start",
+        serde_json::json!({"cwd": cwd.path().to_str().unwrap()}),
+    );
+    let thread_id = started["result"]["thread"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let thread_started = wait_method(&mut stream, "thread/started");
+    assert_eq!(thread_started["params"]["thread"]["id"], thread_id);
+    let turn = rpc_call(
+        &mut stream,
+        3,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "first-turn"}]
+        }),
+    );
+    assert_eq!(turn["result"]["turn"]["status"], "inProgress");
+    let completed = wait_method(&mut stream, "turn/completed");
+    assert_eq!(completed["params"]["threadId"], thread_id);
+    assert_eq!(completed["params"]["turn"]["status"], "completed");
+    let ledger = Ledger::open(home.path()).expect("ledger");
+    let stored = ledger.read_thread(&thread_id).unwrap();
+    assert_eq!(stored.sandbox, ThreadSandbox::ReadOnly);
+    assert_eq!(stored.approval_policy, ApprovalPolicy::Untrusted);
+    stop(&mut child, &sock);
+}
+
+/// TASK-019 scenario `follow-up`.
+#[test]
+fn shaped_client_follow_up() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen(&url, Some(home.path()));
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    let _ = shaped_handshake(&mut stream);
+    let started = rpc_call(
+        &mut stream,
+        2,
+        "thread/start",
+        serde_json::json!({"cwd": cwd.path().to_str().unwrap()}),
+    );
+    let thread_id = started["result"]["thread"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let _ = wait_method(&mut stream, "thread/started");
+    let first = rpc_call(
+        &mut stream,
+        3,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "first"}]
+        }),
+    );
+    let first_id = first["result"]["turn"]["id"].as_str().unwrap().to_string();
+    let first_done = wait_method(&mut stream, "turn/completed");
+    assert_eq!(first_done["params"]["turn"]["id"], first_id);
+    assert_eq!(first_done["params"]["turn"]["status"], "completed");
+    let resumed = rpc_call(
+        &mut stream,
+        4,
+        "thread/resume",
+        serde_json::json!({"threadId": thread_id}),
+    );
+    assert_eq!(resumed["result"]["thread"]["id"], thread_id);
+    let second = rpc_call(
+        &mut stream,
+        5,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "follow-up"}]
+        }),
+    );
+    let second_id = second["result"]["turn"]["id"].as_str().unwrap().to_string();
+    assert_ne!(second_id, first_id);
+    assert_eq!(second["result"]["turn"]["status"], "inProgress");
+    let second_done = wait_method(&mut stream, "turn/completed");
+    assert_eq!(second_done["params"]["turn"]["id"], second_id);
+    assert_eq!(second_done["params"]["turn"]["status"], "completed");
+    let read = rpc_call(
+        &mut stream,
+        6,
+        "thread/read",
+        serde_json::json!({"threadId": thread_id, "includeTurns": true}),
+    );
+    let turns = read["result"]["thread"]["turns"].as_array().unwrap();
+    assert_eq!(turns.len(), 2, "{read}");
+    stop(&mut child, &sock);
+}
+
+/// TASK-019 scenario `approval`.
+#[test]
+fn shaped_client_approval() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen_with(
+        &url,
+        Some(home.path()),
+        &[("SAMCHI_FOR_GROK_FAKE_ASK_PERMISSION", "1")],
+    );
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    let _ = shaped_handshake(&mut stream);
+    let started = rpc_call(
+        &mut stream,
+        2,
+        "thread/start",
+        serde_json::json!({
+            "cwd": cwd.path().to_str().unwrap(),
+            "approvalPolicy": "untrusted",
+            "sandbox": "workspace-write"
+        }),
+    );
+    let thread_id = started["result"]["thread"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let _ = rpc_call(
+        &mut stream,
+        3,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "edit"}]
+        }),
+    );
+    let mut saw_approval = false;
+    let mut completed = false;
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while Instant::now() < deadline {
+        let msg = read_json(&mut stream);
+        let method = msg.get("method").and_then(|m| m.as_str()).unwrap_or("");
+        if method == "item/commandExecution/requestApproval"
+            || method == "item/fileChange/requestApproval"
+        {
+            assert!(msg.get("id").is_some(), "{msg}");
+            assert!(msg.get("jsonrpc").is_none(), "{msg}");
+            let reply = serde_json::json!({
+                "id": msg["id"],
+                "result": {"decision": "accept"}
+            });
+            stream
+                .write_all(&client_text_frame(reply.to_string().as_bytes()))
+                .unwrap();
+            saw_approval = true;
+        }
+        if method == "turn/completed" {
+            assert_eq!(msg["params"]["turn"]["status"], "completed");
+            completed = true;
+            break;
+        }
+    }
+    assert!(saw_approval, "expected socket requestApproval");
+    assert!(completed, "expected turn/completed after accept");
+    stop(&mut child, &sock);
+}
+
+/// TASK-019 scenario `interrupt`.
+#[test]
+fn shaped_client_interrupt() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen_with(
+        &url,
+        Some(home.path()),
+        &[("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")],
+    );
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    let _ = shaped_handshake(&mut stream);
+    let started = rpc_call(
+        &mut stream,
+        2,
+        "thread/start",
+        serde_json::json!({"cwd": cwd.path().to_str().unwrap()}),
+    );
+    let thread_id = started["result"]["thread"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let first = rpc_call(
+        &mut stream,
+        3,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "hang"}]
+        }),
+    );
+    let turn_id = first["result"]["turn"]["id"].as_str().unwrap().to_string();
+    let req = serde_json::json!({
+        "id": 4,
+        "method": "turn/interrupt",
+        "params": {"threadId": thread_id, "turnId": turn_id}
+    });
+    stream
+        .write_all(&client_text_frame(req.to_string().as_bytes()))
+        .unwrap();
+    let mut saw_reply = false;
+    let mut saw_completed = false;
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while Instant::now() < deadline {
+        let msg = read_json(&mut stream);
+        if msg.get("id") == Some(&serde_json::json!(4)) {
+            assert_eq!(msg["result"]["turn"]["status"], "interrupted");
+            saw_reply = true;
+        }
+        if msg.get("method").and_then(|m| m.as_str()) == Some("turn/completed") {
+            assert_eq!(msg["params"]["turn"]["status"], "interrupted");
+            saw_completed = true;
+        }
+        if saw_reply && saw_completed {
+            break;
+        }
+    }
+    assert!(saw_reply, "expected turn/interrupt reply");
+    assert!(saw_completed, "expected turn/completed interrupted");
+    let fork = rpc_call(
+        &mut stream,
+        5,
+        "thread/fork",
+        serde_json::json!({"threadId": thread_id}),
+    );
+    assert_eq!(fork["error"]["code"], -32602);
+    assert_eq!(fork["error"]["message"], "thread/fork");
+    stop(&mut child, &sock);
+}

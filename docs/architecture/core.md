@@ -111,7 +111,11 @@ is recognized and fail-closed. TASK-018 emits `item/started`, `item/completed`, 
 until a turn item carries structured FileUpdateChange rows. Approvals are
 `item/commandExecution/requestApproval` and `item/fileChange/requestApproval`
 against the existing pending-approval ledger, not MCP tool names.
-`optOutNotificationMethods` stays `[]`.
+`optOutNotificationMethods` stays `[]`. TASK-019 names five Dolgorae-shaped
+consumer scenarios (`probe`, `first-turn`, `follow-up`, `approval`,
+`interrupt`) and publishes `grok/runtime/read` on the facade. The method
+stays out of `samchi-core`. Result shape is `{runtime:"grok", userAgent, home}`.
+`thread/fork` stays fail-closed; this Task recorded no new live capture.
 
 ## v1 scope
 

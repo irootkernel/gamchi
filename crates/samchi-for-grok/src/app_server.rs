@@ -1,5 +1,6 @@
 //! Unix-domain app-server listen, HTTP/1.1 WebSocket upgrade, handshake,
-//! thread/turn methods, and TASK-018 notifications plus approval requests.
+//! thread/turn methods, TASK-018 notifications plus approval requests, and
+//! TASK-019 `grok/runtime/read`.
 
 use crate::ops::{acp_command, cancel_turn, open_home, open_ledger};
 use base64::engine::general_purpose::STANDARD;
@@ -7,7 +8,7 @@ use base64::Engine;
 use samchi_adapter_grok::{
     run_turn_on_admit, ExtraSpawnFields, TurnRequest, UNENFORCEABLE_EXTRA_FIELD_NAMES,
 };
-use samchi_core::ledger::{Ledger, NewThread};
+use samchi_core::ledger::{Ledger, LedgerError, NewThread};
 use samchi_core::source_wire::{
     parse_approval_decision, parse_approval_policy, parse_thread_sandbox, parse_turn_sandbox_type,
     Item, Turn, APP_SERVER_DEFAULT_APPROVAL_POLICY, APP_SERVER_DEFAULT_THREAD_SANDBOX,
@@ -28,7 +29,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Honest initialize identity. Kept out of `samchi-core`.
 pub(crate) const USER_AGENT: &str = "samchi-for-grok/app-server-v1";
+const INVALID_REQUEST: i64 = -32600;
 const METHOD_NOT_FOUND: i64 = -32602;
+const GROK_RUNTIME_READ: &str = "grok/runtime/read";
 
 /// RFC 6455 magic string used with `Sec-WebSocket-Key`.
 const WEBSOCKET_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -584,10 +587,24 @@ fn handle_rpc(msg: &Value, home: &Path) -> Option<Value> {
         }
         "account/read" => Some(json!({"id": id, "result": json!({"requiresOpenaiAuth": false})})),
         "model/list" => Some(json!({"id": id, "result": model_list_result()})),
+        GROK_RUNTIME_READ => {
+            if params.as_object().is_none_or(|obj| !obj.is_empty()) {
+                return Some(rpc_error(
+                    id,
+                    METHOD_NOT_FOUND,
+                    "grok/runtime/read takes no params",
+                ));
+            }
+            Some(json!({"id": id, "result": grok_runtime_read(home)}))
+        }
         "thread/fork" => Some(rpc_error(id, METHOD_NOT_FOUND, "thread/fork")),
         "thread/start" => Some(rpc_result(id, thread_start(&params, home))),
         "thread/resume" => Some(rpc_result(id, thread_resume(&params, home))),
-        "thread/read" => Some(rpc_result(id, thread_read(&params, home))),
+        "thread/read" => Some(match thread_read(&params, home) {
+            Ok(result) => json!({"id": id, "result": result}),
+            Err(ThreadReadError::Absent(message)) => rpc_error(id, INVALID_REQUEST, &message),
+            Err(ThreadReadError::Other(message)) => rpc_error(id, METHOD_NOT_FOUND, &message),
+        }),
         "turn/start" => Some(rpc_result(id, turn_start(&params, home))),
         "turn/interrupt" => Some(rpc_result(id, turn_interrupt(&params, home))),
         _ => Some(rpc_error(id, METHOD_NOT_FOUND, method)),
@@ -687,18 +704,29 @@ fn thread_resume(params: &Value, home: &Path) -> Result<Value, String> {
     }))
 }
 
-fn thread_read(params: &Value, home: &Path) -> Result<Value, String> {
-    reject_unenforceable_extras(params)?;
+enum ThreadReadError {
+    Absent(String),
+    Other(String),
+}
+
+fn thread_read(params: &Value, home: &Path) -> Result<Value, ThreadReadError> {
+    reject_unenforceable_extras(params).map_err(ThreadReadError::Other)?;
     let thread_id = params
         .get("threadId")
         .and_then(Value::as_str)
-        .ok_or_else(|| "threadId required".to_string())?;
-    let ledger = open_ledger(Some(home))?;
-    let stored = ledger.read_thread(thread_id).map_err(|e| e.to_string())?;
+        .ok_or_else(|| ThreadReadError::Other("threadId required".to_string()))?;
+    let ledger = Ledger::open(home).map_err(|e| ThreadReadError::Other(e.to_string()))?;
+    let stored = match ledger.read_thread(thread_id) {
+        Ok(stored) => stored,
+        Err(err @ LedgerError::NotFound { .. }) => {
+            return Err(ThreadReadError::Absent(err.to_string()));
+        }
+        Err(err) => return Err(ThreadReadError::Other(err.to_string())),
+    };
     let turns = if params.get("includeTurns").and_then(Value::as_bool) == Some(false) {
         Vec::new()
     } else {
-        turns_for_thread(&ledger, &stored.id)?
+        turns_for_thread(&ledger, &stored.id).map_err(ThreadReadError::Other)?
     };
     Ok(json!({"thread": {"id": stored.id, "turns": turns}}))
 }
@@ -855,6 +883,14 @@ fn initialize_result() -> Value {
     })
 }
 
+fn grok_runtime_read(home: &Path) -> Value {
+    json!({
+        "runtime": "grok",
+        "userAgent": USER_AGENT,
+        "home": home.display().to_string(),
+    })
+}
+
 fn model_list_result() -> Value {
     json!({
         "data": [{
@@ -954,15 +990,14 @@ fn write_ws_frame(stream: &mut UnixStream, opcode: u8, payload: &[u8]) -> io::Re
 mod tests {
     use super::*;
     use std::os::unix::net::UnixStream;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::thread;
-    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static SOCK_SEQ: AtomicU64 = AtomicU64::new(0);
 
     fn unique_sock() -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("time")
-            .as_nanos();
-        std::env::temp_dir().join(format!("samchi-as-{nanos}.sock"))
+        let n = SOCK_SEQ.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!("samchi-as-{}-{n}.sock", std::process::id()))
     }
 
     fn dolgorae_upgrade(key: &str) -> String {
@@ -1141,6 +1176,85 @@ mod tests {
         assert_eq!(models["result"]["data"][0]["model"], "grok");
         assert_eq!(models["result"]["data"][0]["isDefault"], true);
         assert!(models["result"]["nextCursor"].is_null());
+    }
+
+    #[test]
+    fn grok_runtime_read_is_honest_and_out_of_core() {
+        let home = tempfile::tempdir().expect("home");
+        let reply = handle_rpc(
+            &json!({"id": "rt-1", "method": GROK_RUNTIME_READ, "params": {}}),
+            home.path(),
+        )
+        .unwrap();
+        assert!(reply.get("jsonrpc").is_none());
+        assert_eq!(reply["id"], "rt-1");
+        assert_eq!(reply["result"]["runtime"], "grok");
+        assert_eq!(reply["result"]["userAgent"], USER_AGENT);
+        assert_eq!(
+            reply["result"]["home"].as_str().unwrap(),
+            home.path().display().to_string()
+        );
+        assert!(
+            Path::new(reply["result"]["home"].as_str().unwrap()).is_absolute(),
+            "{reply}"
+        );
+        assert!(!samchi_core::source_wire::CLIENT_METHODS.contains(&GROK_RUNTIME_READ));
+        let extras = handle_rpc(
+            &json!({
+                "id": "rt-2",
+                "method": GROK_RUNTIME_READ,
+                "params": {"writableRoots": ["/tmp"]}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert_eq!(extras["error"]["code"], METHOD_NOT_FOUND);
+        assert!(
+            extras["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("no params"),
+            "{extras}"
+        );
+    }
+
+    #[test]
+    fn absent_thread_read_is_invalid_request() {
+        let reply = rpc(&json!({
+            "id": 9,
+            "method": "thread/read",
+            "params": {"threadId": "01900000-0000-7000-8000-000000000000", "includeTurns": true}
+        }))
+        .unwrap();
+        assert_eq!(reply["error"]["code"], INVALID_REQUEST);
+        assert!(
+            reply["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("not found"),
+            "{reply}"
+        );
+    }
+
+    #[test]
+    fn thread_read_param_errors_stay_invalid_params() {
+        let missing = rpc(&json!({"id": 10, "method": "thread/read", "params": {}})).unwrap();
+        assert_eq!(missing["error"]["code"], METHOD_NOT_FOUND);
+        assert_eq!(missing["error"]["message"], "threadId required");
+        let extras = rpc(&json!({
+            "id": 11,
+            "method": "thread/read",
+            "params": {"threadId": "t1", "writableRoots": ["/tmp"]}
+        }))
+        .unwrap();
+        assert_eq!(extras["error"]["code"], METHOD_NOT_FOUND);
+        assert!(
+            extras["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("writableRoots"),
+            "{extras}"
+        );
     }
 
     #[test]

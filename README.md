@@ -33,8 +33,8 @@ Dolgorae.
 
 ## Status
 
-See [docs/roadmap/README.md](docs/roadmap/README.md). Next work is TASK-017
-(app-server thread/turn). ACP go is
+See [docs/roadmap/README.md](docs/roadmap/README.md). TASK-019 named five
+consumer scenarios and published `grok/runtime/read`. ACP go is
 [ADR-0002](docs/architecture-decision-records/0002-grok-agent-stdio.md).
 The TASK-004 live `grok agent stdio` capture is
 [crates/adapter-grok/captures/task-004](crates/adapter-grok/captures/task-004).
@@ -62,4 +62,7 @@ Omitted socket sandbox and approvalPolicy stay `read-only` / `untrusted`.
 `thread/fork` is recognized and fail-closed. The socket emits `thread/started`, `item/started`, `item/completed`, and
 `turn/completed`. Approvals are subset server requests on the existing
 pending-approval ledger, not MCP `grok_respond`.
-`optOutNotificationMethods` stays empty.
+`optOutNotificationMethods` stays empty. `grok/runtime/read` returns
+`runtime: grok`, the same `userAgent`, and the resolved ledger `home`.
+A Dolgorae-shaped client proves five named scenarios (`probe`, `first-turn`,
+`follow-up`, `approval`, `interrupt`) offline. `thread/fork` stays fail-closed.

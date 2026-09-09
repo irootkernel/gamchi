@@ -14,7 +14,7 @@ reuse the core’s shape; those adapters are not this product.
 | Parent | Facade | v1 |
 | --- | --- | --- |
 | Claude Code, Codex | MCP (Gaori-shaped spawn/await) | yes |
-| Dolgorae | `app-server --listen unix://` | after the worker (EPIC-005) |
+| Dolgorae | `app-server --listen unix://` | after the worker (EPIC-005). Five named Dolgorae-shaped scenarios (`probe`, `first-turn`, `follow-up`, `approval`, `interrupt`) plus `grok/runtime/read`. Not a Dolgorae Profile. |
 | Human / tests | CLI | yes, same domain ops, different process lifetime |
 
 ## v1 done when

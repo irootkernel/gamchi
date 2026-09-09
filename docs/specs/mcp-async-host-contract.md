@@ -55,7 +55,10 @@ write the same home ledger as MCP spawn; they do not inherit MCP spawn
 defaults. Socket approvals are subset server requests
 (`item/commandExecution/requestApproval`, `item/fileChange/requestApproval`)
 on that same `pending_approval` / respond ledger. They are not MCP
-`grok_respond`.
+`grok_respond`. TASK-019 publishes `grok/runtime/read` on that socket
+(`runtime: grok`, `userAgent`, `home`). It is not an MCP tool. Five named
+Dolgorae-shaped scenarios (`probe`, `first-turn`, `follow-up`, `approval`,
+`interrupt`) live in [protocol/README.md](../protocol/README.md).
 
 ## Tool surface
 

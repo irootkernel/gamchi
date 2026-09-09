@@ -12,6 +12,7 @@ table; it does not invent another.
 These are the only public items the adapter emits in v1. The app-server
 socket projects the same items as `item/started` / `item/completed`
 notifications; it does not add MCP tool names or a second item store.
+`grok/runtime/read` is a facade identity method, not a ThreadItem.
 
 | ItemType | ACP source |
 | --- | --- |

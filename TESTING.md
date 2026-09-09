@@ -78,3 +78,9 @@ TASK-018 socket notifications and approvals are offline: `thread/started`,
 `item/commandExecution/requestApproval` / `item/fileChange/requestApproval`
 mapped to the existing pending-approval respond path. `optOutNotificationMethods`
 must stay empty. Live Grok is not required.
+TASK-019 names five Dolgorae-shaped consumer scenarios (`probe`,
+`first-turn`, `follow-up`, `approval`, `interrupt`) and publishes
+`grok/runtime/read` (`runtime: grok`, `userAgent`, `home`) on that socket.
+Absent `thread/read` is JSON-RPC `-32600`. `thread/fork` stays fail-closed.
+The shaped client is offline against the fake ACP agent. Live Grok is not
+required and is not a Dolgorae Profile integration.
