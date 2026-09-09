@@ -5,8 +5,7 @@ Language: English.
 Future epic-sized candidates and temporary execution dossiers. This index
 does not own roadmap identity or lifecycle status.
 
-Current execution dossier: [TODO-EPIC-006.md](TODO-EPIC-006.md) (EPIC-006
-Selectable Grok model). This index does not record lifecycle status.
+No current execution dossier. This index does not record lifecycle status.
 
 Future candidates (not lifecycle):
 

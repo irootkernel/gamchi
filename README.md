@@ -33,7 +33,8 @@ Dolgorae.
 
 ## Status
 
-See [docs/roadmap/README.md](docs/roadmap/README.md). EPIC-005 published the
+See [docs/roadmap/README.md](docs/roadmap/README.md). EPIC-006 lets parents
+choose a Grok model and reasoning effort on the same worker. EPIC-005 published the
 CCAS-shaped app-server, five named consumer scenarios, and `grok/runtime/read`.
 ACP go is
 [ADR-0002](docs/architecture-decision-records/0002-grok-agent-stdio.md).

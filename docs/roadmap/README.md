@@ -55,7 +55,7 @@ Next eligible Task: none.
 | Phase 1 — Contract and feasibility | Test gate, internal thread/turn/item types, ACP go/no-go | `Completed` | EPIC-001..EPIC-002 |
 | Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `Completed` | EPIC-003..EPIC-004 |
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Completed` | EPIC-005 |
-| Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `In Progress` | EPIC-006 |
+| Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `Completed` | EPIC-006 |
 
 ## EPIC-001: Foundation
 
@@ -173,11 +173,17 @@ Layer the CCAS standard wire on the same worker. No new runtime.
 
 ## EPIC-006: Selectable Grok model
 
-Status: `In Progress`
+Status: `Completed`
 
 Depends on: EPIC-005
 
-Detailed SOT: [TODO-EPIC-006.md](../todo/TODO-EPIC-006.md)
+Canonical Outcomes: home `config.yaml` cascade and argv `-m` / `--reasoning-effort`
+([grok-launch.md](../specs/grok-launch.md));
+MCP/CLI spawn and follow-up `model` / `effort` with thread model lock
+([mcp-async-host-contract.md](../specs/mcp-async-host-contract.md));
+app-server `model/list` advertisement, omitted `thread/start` cascade, and
+`turn/start` model lock ([architecture/core.md](../architecture/core.md));
+ignored live argv proof ([TESTING.md](../../TESTING.md)).
 
 Parents choose a Grok model and reasoning effort when they spawn. Omitted
 fields resolve from home `config.yaml`, then built-in `grok-4.6` / `high`,
