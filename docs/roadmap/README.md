@@ -57,7 +57,7 @@ Next eligible Task: none.
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Completed` | EPIC-005 |
 | Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `Completed` | EPIC-006 |
 | Phase 5 — Product identity | Grok worker command is gamchi | `Completed` | EPIC-007 |
-| Phase 6 — Codex-shaped developer instructions | Socket `developerInstructions` either reach Grok for that thread generation or fail closed | `In Progress` | EPIC-008 |
+| Phase 6 — Codex-shaped developer instructions | Socket `developerInstructions` either reach Grok for that thread generation or fail closed | `Completed` | EPIC-008 |
 
 ## EPIC-001: Foundation
 
@@ -248,15 +248,17 @@ allowlisted leftover-name search. No live Grok rerun. No old-name aliases.
 
 ## EPIC-008: Generation-immutable developer instructions
 
-Status: `In Progress`
+Status: `Completed`
 
 Depends on: EPIC-007
 
-Detailed SOT: [TODO-EPIC-008-developer-instructions.md](../todo/TODO-EPIC-008-developer-instructions.md)
-
-Canonical owners while Planned: this roadmap;
-[grok-launch.md](../specs/grok-launch.md);
-[acp-item-mapping.md](../specs/acp-item-mapping.md).
+Canonical Outcomes: refuse-only app-server `developerInstructions`
+([grok-launch.md](../specs/grok-launch.md) input/lifetime/failure table,
+[ADR-0003](../architecture-decision-records/0003-developer-instructions-refuse.md));
+product pointer
+([product.md](../specs/product.md)).
+A refuse-only closeout is **safe refusal**, not **role-instruction
+attach**.
 
 A Dolgorae-shaped app-server parent assigns role/purpose with subset
 `developerInstructions` on `thread/start`. Gamchi either installs that

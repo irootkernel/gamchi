@@ -7,12 +7,6 @@ does not own roadmap identity or lifecycle status.
 
 This index does not record lifecycle status.
 
-## Adopted dossiers
-
-- [EPIC-008 developer instructions](TODO-EPIC-008-developer-instructions.md) —
-  generation-immutable subset `developerInstructions` for a Dolgorae-shaped
-  app-server parent. Lifecycle stays on the roadmap.
-
 ## Future candidates
 
 - Dolgorae attach after EPIC-008: Profile is Codex 0.153.4; turns send
