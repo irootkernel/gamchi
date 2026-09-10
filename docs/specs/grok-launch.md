@@ -136,3 +136,25 @@ Host-side `fs/read_text_file` and `fs/write_text_file` stay inside the turn
 inferred from `fileChange` items. Deletes, moves, and shell-mediated writes
 show up only if git sees them. Non-git cwd: `files_changed` is empty and
 `files_changed_complete` is false.
+
+## Developer instructions (EPIC-008)
+
+Subset `developerInstructions` on app-server `thread/start` is
+role/purpose text for **one Gamchi thread**, not a Dolgorae thread
+generation and not a sandbox-class security boundary. Ledger storage is
+not Grok enforcement. TASK-029 fills this section with the
+input/lifetime/failure table (omit/null/empty/whitespace/wrong type;
+resume same vs change vs explicit empty; forbidden `turn/start` field;
+pre-EPIC-008 stored non-empty reuse; early refuse vs abort before
+prompt; admitted turn publishes `failed` plus completion). Do not
+prepend the text onto `session/prompt`.
+
+TASK-030 may investigate `--rules` (append) and
+`--system-prompt-override` (full replacement). Adopt a full replacement
+only if the ADR verifies default-behavior impact and preservation of
+required working instructions.
+
+This epic does not make a Dolgorae Profile able to launch gamchi.
+Remaining attach (later work): Codex 0.153.4 Profile validation,
+`networkAccess` / `writableRoots` extras, unverified `read-only`.
+Refuse-only closeout is safe refusal, not role-instruction attach.

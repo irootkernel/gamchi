@@ -5,10 +5,21 @@ Language: English.
 Future epic-sized candidates and temporary execution dossiers. This index
 does not own roadmap identity or lifecycle status.
 
-No current execution dossier. This index does not record lifecycle status.
+This index does not record lifecycle status.
 
-Future candidates (not lifecycle):
+## Adopted dossiers
 
+- [EPIC-008 developer instructions](TODO-EPIC-008-developer-instructions.md) —
+  generation-immutable subset `developerInstructions` for a Dolgorae-shaped
+  app-server parent. Lifecycle stays on the roadmap.
+
+## Future candidates
+
+- Dolgorae attach after EPIC-008: Profile is Codex 0.153.4; turns send
+  `networkAccess: false` and write turns send `writableRoots`; gamchi
+  refuses those extras and unverified `read-only`. Instruction
+  delivery is a predecessor, not attach. Re-enter when Dolgorae owns a
+  non-Codex Profile or a Gamchi adapter.
 - Teardown should treat a zombie child as dead (`waitpid` `WNOHANG` or
   equivalent) so `grok_cancel` does not wait ~2.5s after SIGTERM
   (EPIC-004 confirmation Lows F001/F002).

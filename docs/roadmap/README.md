@@ -46,7 +46,7 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: none.
+Next eligible Task: `TASK-029`.
 
 ## Phase index
 
@@ -57,6 +57,7 @@ Next eligible Task: none.
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Completed` | EPIC-005 |
 | Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `Completed` | EPIC-006 |
 | Phase 5 — Product identity | Grok worker command is gamchi | `Completed` | EPIC-007 |
+| Phase 6 — Codex-shaped developer instructions | Socket `developerInstructions` either reach Grok for that thread generation or fail closed | `Planned` | EPIC-008 |
 
 ## EPIC-001: Foundation
 
@@ -244,3 +245,59 @@ allowlisted leftover-name search. No live Grok rerun. No old-name aliases.
 | Task | Title | Status | Depends on | Done when |
 | --- | --- | --- | --- | --- |
 | [TASK-028](#epic-007-product-identity-gamchi) | Rename product identity to Gamchi | `Completed` | TASK-027 | Live runtime/diagnostic/doc identity is `gamchi` (binary, facade crate, Makefile, CLI usage/version, ACP client name, fake-agent/harness names, userAgent, GAMCHI_* including STARTUP_ERROR, home, skill, MCP server key, live docs/ADRs/TESTING.md). `samchi-core` and `samchi-adapter-grok` stay. MCP tools stay `grok_*`. Hard cutover: no SAMCHI_FOR_GROK_* fallback, no ~/.samchi-for-grok auto-discover/copy/migrate; `--home` still accepts any absolute path. Allowlist: completed Task rows; task-004 capture bytes and matching literals; GitHub remote/clone path. `make test`, `make build`, `./bin/gamchi version --json`, home precedence, host packaging, allowlisted leftover search. No live Grok rerun. No old-name aliases |
+
+## EPIC-008: Generation-immutable developer instructions
+
+Status: `Planned`
+
+Depends on: EPIC-007
+
+Detailed SOT: [TODO-EPIC-008-developer-instructions.md](../todo/TODO-EPIC-008-developer-instructions.md)
+
+Canonical owners while Planned: this roadmap;
+[grok-launch.md](../specs/grok-launch.md);
+[acp-item-mapping.md](../specs/acp-item-mapping.md).
+
+A Dolgorae-shaped app-server parent assigns role/purpose with subset
+`developerInstructions` on `thread/start`. Gamchi either installs that
+text so Grok follows it for the life of that Gamchi thread, or refuses a
+non-empty value. Silent drop is invalid. This is **not** Dolgorae thread
+generation (start/resume/fork instruction binding). Gamchi
+`generation_id` is per admitted turn. This epic's freeze is: **one
+Gamchi thread keeps one instruction string; resume with the same value
+succeeds; a change is refused.** Dolgorae sends the field on resume, so
+same-value retransmit is required.
+
+A completed turn kills the Grok child. The next turn starts a new
+process and `session/load`s the stored ACP session. First-turn
+`session/new` delivery is not proof that a later process still has the
+instructions. Distinguish **must not change** from **must not restore
+the same text**. If the observed channel is process-scoped, follow-up
+must re-apply the stored string; that is restore, not a new generation.
+
+Instructions are role/purpose text, not a sandbox-class security
+boundary. Do not claim they confine Grok the way `--sandbox` claims to.
+
+ACP `session/new` has no instruction field in the pinned client crate.
+Do not prepend instructions onto `session/prompt` user input. Do not
+invent a Grok CLI flag or `_meta` key without a live capture that Grok
+**honors**, not merely echoes. Unauthenticated capture is Blocked.
+
+This epic is a predecessor for instruction-delivery compatibility. It
+does not make Dolgorae able to select gamchi. Remaining attach work
+(other repo / later epic): Profile validation is Codex 0.153.4 and
+runs Codex schema generation; Dolgorae turns send `networkAccess:
+false` and write turns send `writableRoots` (gamchi refuses those
+extras); gamchi also refuses unverified `sandbox=read-only`. A
+refuse-only closeout is **safe refusal**, not **role-instruction
+attach**.
+
+Non-goals: Dolgorae Profile or adapter (other repo); `thread/fork`; MCP
+`grok_spawn` instruction field; Camchi/Zamchi; prompt-prepend; CCAS
+import; claiming Dolgorae Profile attach.
+
+| Task | Title | Status | Depends on | Done when |
+| --- | --- | --- | --- | --- |
+| [TASK-029](#epic-008-generation-immutable-developer-instructions) | Spec instruction contract and fail-closed | `Planned` | TASK-028 | grok-launch.md owns the input/lifetime/failure table and states instructions are not a sandbox-class boundary. acp-item-mapping.md says they are not a userMessage and not prompt-prepend. The table covers: omit, JSON null, empty string, whitespace-only, wrong JSON type; resume same value (succeed), different value (refuse), explicit empty; turn/start with forbidden developerInstructions; reuse of a pre-EPIC-008 thread that already stored non-empty text. Statically known unsupported refuses before admit. Runtime apply failure aborts before session/prompt. If a turn was already admitted, publish `failed` and the completion notification so the parent is not left waiting. Omitted/empty first start stays today's no-instruction path. Must not change ≠ must not restore. |
+| [TASK-030](#epic-008-generation-immutable-developer-instructions) | Capture how live grok agent stdio receives instructions | `Planned` | TASK-029 | ADR from a live capture or recorded absence. First investigation candidate: installed Grok `1.0.25` `--rules` (docs.x.ai CLI reference: extra rules appended to the system prompt). Also investigate `--system-prompt-override` / `--system-prompt` (full system-prompt replacement, not the same as `--rules`). Adopt a full replacement only if the ADR verifies its effect on default agent behavior and that required working instructions are preserved; a role-response difference alone is not adoption. `agent stdio` honor is unproven until this capture. Evidence must record grok version and argv, the exact channel, separation from user prompt, an **observable behavior difference** with vs without the text (traffic that only contains the string is not go — sent-but-ignored fails), and survival across first turn → child exit → new child `session/load` → second turn (re-apply if the channel is process-scoped). Distinguish: unverified (Blocked, not a bypass); this-version no-go for apply / go for refuse; go for apply. Unauthenticated is Blocked. Compilation is not proof. |
+| [TASK-031](#epic-008-generation-immutable-developer-instructions) | Apply the captured channel, or refuse non-empty | `Planned` | TASK-030 | Fake agent plus app-server tests for the TASK-029 table: omit/empty still works; non-empty follows the ADR; same-value resume succeeds; change refuses; restore after child exit (first turn → kill → new child `session/load` → second turn). `make test` is the offline gate and does not call live Grok. Go-for-apply requires running and passing the ignored live test against the TASK-031 implementation before completion. That live run must exercise instruction delivery and restoration through Gamchi’s app-server path. `make test` still skips it. If authentication or the execution environment prevents that live run, do not complete; leave remaining verification explicit (`Blocked`, not a skip). Refuse-only stays offline: `make test` proves refusal and the closeout is safe-refusal, not attach-ready. |
