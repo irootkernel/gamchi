@@ -172,6 +172,7 @@ Layer the CCAS standard wire on the same worker. No new runtime.
 | [TASK-017](#epic-005-app-server-wire) | nine thread/turn methods call the worker | `Completed` | TASK-016 | socket thread/start+turn/start writes the same ledger as MCP spawn |
 | [TASK-018](#epic-005-app-server-wire) | server notifications + requestApproval on the socket | `Completed` | TASK-017 | item/started, completed, turn/completed. approvals are socket server requests |
 | [TASK-019](#epic-005-app-server-wire) | five consumer scenarios + grok/runtime/read | `Completed` | TASK-018 | Named scenarios and grok/runtime/read shape live in this repo. Dolgorae-shaped client passes. thread/fork only if a new capture proved it (ADR-0002 did not decide it). Not a Dolgorae Profile integration |
+| [TASK-032](#epic-005-app-server-wire) | Wait until unix listen accepts | `Completed` | TASK-019 | app-server tests wait_for_sock until UnixStream::connect succeeds, not path.exists. bind() creates the inode before listen(); that window is ECONNREFUSED. make test is the gate |
 
 ## EPIC-006: Selectable Grok model
 

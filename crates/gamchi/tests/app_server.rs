@@ -52,10 +52,14 @@ fn spawn_listen_with(url: &str, home: Option<&Path>, extra: &[(&str, &str)]) -> 
 }
 
 fn wait_for_sock(path: &Path, child: &mut Child) {
+    // UnixListener::bind creates the inode at bind() and only then listen().
+    // path.exists() is true in that window; connect still gets ECONNREFUSED.
     let start = Instant::now();
+    let mut last_err = None;
     while start.elapsed() < Duration::from_secs(8) {
-        if path.exists() {
-            return;
+        match UnixStream::connect(path) {
+            Ok(_) => return,
+            Err(err) => last_err = Some(err),
         }
         if let Ok(Some(status)) = child.try_wait() {
             let mut err = String::new();
@@ -71,7 +75,7 @@ fn wait_for_sock(path: &Path, child: &mut Child) {
     if let Some(mut stderr) = child.stderr.take() {
         let _ = stderr.read_to_string(&mut err);
     }
-    panic!("listen socket did not appear; stderr {err}");
+    panic!("listen socket never accepted a connection; last error: {last_err:?}; stderr {err}");
 }
 
 fn stop(child: &mut Child, sock: &Path) {
