@@ -34,6 +34,10 @@ explicit parent field, then home `config.yaml` keys `default_model` and
 `default_effort`, then built-in `grok-4.6` / `high`. Gamchi does not
 inherit `~/.grok/config.toml`. There is no project-local config.
 
+App-server `developerInstructions` follow [grok-launch.md](grok-launch.md).
+Omitted or empty stays the no-instruction path. A non-empty value is
+applied or refused; silent ignore is invalid.
+
 ## Exclusions
 
 - `grok -p` print mode
@@ -46,6 +50,7 @@ inherit `~/.grok/config.toml`. There is no project-local config.
   parent-owned `grok agent stdio` with `--no-leader`)
 - Pre-admitting or rejecting spawn by parsing `grok models`
 - Project-local / cwd model config, or inheriting `~/.grok/config.toml`
+- Silent drop of app-server `developerInstructions` (apply or refuse)
 
 ## Supported environments (intent)
 

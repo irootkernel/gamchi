@@ -24,8 +24,12 @@ notifications; it does not add MCP tool names or a second item store.
 | `webSearch` | `tool_call` with kind `fetch` or `search` when the title/url is web |
 
 Socket `developerInstructions` are not an ACP `userMessage` and must not
-be prepended onto `session/prompt`. Mapping onto the Grok session is
-EPIC-008 (TASK-029).
+be prepended onto `session/prompt`. They are role/purpose text for one
+Gamchi thread, not turn input. Mapping onto the Grok session is the
+fail-closed contract in [grok-launch.md](grok-launch.md): omit or empty
+stays the no-instruction path; a non-empty value is applied or refused;
+a change on resume is refused. Do not invent an ACP `_meta` instruction
+key without a live capture that Grok honors.
 
 `tool_call` creates or updates one item. If the first `tool_call` is already
 terminal, the item is created completed (or failed) in one step.

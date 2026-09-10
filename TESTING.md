@@ -90,3 +90,7 @@ TASK-019 names five Dolgorae-shaped consumer scenarios (`probe`,
 Absent `thread/read` is JSON-RPC `-32600`. `thread/fork` stays fail-closed.
 The shaped client is offline against the fake ACP agent. Live Grok is not
 required and is not a Dolgorae Profile integration.
+TASK-029 is documentation: the developer-instruction table lives in
+`docs/specs/grok-launch.md`. `make test` does not spawn live Grok.
+TASK-031 owns offline fake-agent and app-server coverage of that table.
+Go-for-apply live proof is an ignored test and is not this Task.

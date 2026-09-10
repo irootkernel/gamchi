@@ -59,11 +59,12 @@ capture. Traffic that only contains the string is not go
 
 Today `thread/start` treats a non-string `developerInstructions` as
 empty (`app_server.rs`); `thread/resume` ignores the field. Those
-silent-drop paths are in TASK-029's table.
+silent-drop paths are closed by the TASK-029 table; TASK-031 implements
+them.
 
-## Input and failure table (TASK-029 writes the outcomes)
+## Input and failure table
 
-Cover every row in [grok-launch.md](../specs/grok-launch.md):
+Outcomes live in [grok-launch.md](../specs/grok-launch.md). Cover:
 
 - `thread/start`: omitted, JSON null, empty string, whitespace-only,
   wrong JSON type.

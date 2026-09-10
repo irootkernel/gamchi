@@ -1,8 +1,9 @@
-# Grok adapter launch (sandbox, approvals, model, and effort)
+# Grok adapter launch (sandbox, approvals, model, effort, and instructions)
 
 Language: English. TASK-007 implements sandbox and approval mapping. Do
 not treat Codex sandbox names as Grok enforcement. TASK-023 specifies
 model and reasoning-effort launch; TASK-024 implements the argv.
+TASK-029 specifies developer-instruction lifetime and fail-closed.
 
 ## Spawn fields vs Grok flags
 
@@ -139,22 +140,79 @@ show up only if git sees them. Non-git cwd: `files_changed` is empty and
 
 ## Developer instructions (EPIC-008)
 
-Subset `developerInstructions` on app-server `thread/start` is
-role/purpose text for **one Gamchi thread**, not a Dolgorae thread
-generation and not a sandbox-class security boundary. Ledger storage is
-not Grok enforcement. TASK-029 fills this section with the
-input/lifetime/failure table (omit/null/empty/whitespace/wrong type;
-resume same vs change vs explicit empty; forbidden `turn/start` field;
-pre-EPIC-008 stored non-empty reuse; early refuse vs abort before
-prompt; admitted turn publishes `failed` plus completion). Do not
-prepend the text onto `session/prompt`.
+Subset `developerInstructions` on app-server `thread/start` and
+`thread/resume` is role/purpose text for **one Gamchi thread**. It is
+not a Dolgorae thread generation, not a Gamchi `generation_id` (that
+stays per admitted turn), and not a sandbox-class security boundary.
+Ledger storage is not Grok enforcement. Do not prepend the text onto
+`session/prompt`. MCP `grok_spawn` has no instruction field.
 
-TASK-030 may investigate `--rules` (append) and
-`--system-prompt-override` (full replacement). Adopt a full replacement
-only if the ADR verifies default-behavior impact and preservation of
-required working instructions.
+**Freeze:** one Gamchi thread keeps one instruction string. Resume with
+the same value succeeds; a change is refused. Comparison is exact (no
+trim). Dolgorae sends the field on resume, so same-value retransmit is
+required.
+
+**Restore is not freeze.** A completed turn kills the Grok child. The
+next turn starts a new process and `session/load`s the stored ACP
+session. First-turn `session/new` is not proof the later process still
+has the text. If the observed channel is process-scoped, follow-up
+re-applies the stored string. That restore is not a new instruction
+generation.
+
+### Input and failure table
+
+JSON `null` is omit. Empty means `""`. Whitespace-only means a string
+whose every character is Unicode whitespace. Wrong JSON type means
+boolean, number, array, or object.
+
+| Surface | Input | Outcome |
+| --- | --- | --- |
+| `thread/start` | omitted or JSON `null` | empty; today's no-instruction path |
+| `thread/start` | `""` | empty; no-instruction path |
+| `thread/start` | whitespace-only string | refuse before admit |
+| `thread/start` | wrong JSON type | refuse before admit |
+| `thread/start` | non-empty string | freeze that exact string; apply or refuse per the channel rules below |
+| `thread/resume` | omitted or JSON `null` | keep stored |
+| `thread/resume` | same non-empty as stored | succeed |
+| `thread/resume` | different non-empty than stored | refuse before admit |
+| `thread/resume` | `""` while stored is empty | succeed (no-instruction) |
+| `thread/resume` | `""` while stored is non-empty | refuse before admit (change) |
+| `thread/resume` | whitespace-only string | refuse before admit |
+| `thread/resume` | wrong JSON type | refuse before admit |
+| `turn/start` | any `developerInstructions` member | refuse before admit (forbidden) |
+| existing thread | stored non-empty that cannot be applied | refuse the new turn before admit; not silent ignore |
+
+Omitted or empty first `thread/start` stays today's no-instruction
+path. A pre-EPIC-008 thread that already stored non-empty text is not
+grandfathered as silent ignore: the stored string is the freeze value.
+
+### Apply versus refuse
+
+Must not change is not must not restore. A same-value resume and a
+process-scoped re-apply of the stored string are allowed. A different
+value is not.
+
+Statically known unsupported refuses **before admit**: wrong type,
+whitespace-only, a `turn/start` `developerInstructions` member, a
+resume that would change the stored string, and a non-empty freeze
+string when no verified apply channel exists.
+
+When a verified channel exists, install the frozen non-empty string on
+that channel for the life of the Gamchi thread. Runtime apply failure
+aborts **before** `session/prompt`. If a turn was already admitted,
+publish `failed` and the completion notification so the parent is not
+left waiting.
+
+Silent store-and-ignore is invalid. Traffic that only contains the
+string is not proof Grok honors it.
+
+TASK-030 captures whether live `grok agent stdio` honors `--rules`
+(append) or `--system-prompt-override` / `--system-prompt` (full
+replacement). Adopt a full replacement only if the ADR verifies its
+effect on default agent behavior and that required working instructions
+are preserved. TASK-031 implements apply or refuse-only. Refuse-only
+is safe refusal, not role-instruction attach.
 
 This epic does not make a Dolgorae Profile able to launch gamchi.
 Remaining attach (later work): Codex 0.153.4 Profile validation,
 `networkAccess` / `writableRoots` extras, unverified `read-only`.
-Refuse-only closeout is safe refusal, not role-instruction attach.
