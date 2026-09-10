@@ -15,14 +15,14 @@ use std::time::Duration;
 
 pub const WORKER_USAGE: &str = "\
 Usage:
-  samchi-for-grok worker start --json [--home <absolute-path>] [--cwd <absolute-path>] [--approval-policy <never|untrusted|on-request>] [--model <id>] [--effort <id>] <prompt>
-  samchi-for-grok worker wait --json --turn-id <id> [--home <absolute-path>] [--timeout-ms <1-50000>]
-  samchi-for-grok worker status --json --turn-id <id> [--home <absolute-path>]
-  samchi-for-grok worker result --json --turn-id <id> [--home <absolute-path>]
-  samchi-for-grok worker list --json [--home <absolute-path>] [--cwd <absolute-path>]
-  samchi-for-grok worker cancel --json --turn-id <id> [--home <absolute-path>]
-  samchi-for-grok worker followup --json --thread-id <id> [--home <absolute-path>] [--cwd <absolute-path>] [--model <id>] [--effort <id>] <prompt>
-  samchi-for-grok worker respond --json --request-id <id> --decision <accept|acceptForSession|decline|cancel> [--home <absolute-path>]
+  gamchi worker start --json [--home <absolute-path>] [--cwd <absolute-path>] [--approval-policy <never|untrusted|on-request>] [--model <id>] [--effort <id>] <prompt>
+  gamchi worker wait --json --turn-id <id> [--home <absolute-path>] [--timeout-ms <1-50000>]
+  gamchi worker status --json --turn-id <id> [--home <absolute-path>]
+  gamchi worker result --json --turn-id <id> [--home <absolute-path>]
+  gamchi worker list --json [--home <absolute-path>] [--cwd <absolute-path>]
+  gamchi worker cancel --json --turn-id <id> [--home <absolute-path>]
+  gamchi worker followup --json --thread-id <id> [--home <absolute-path>] [--cwd <absolute-path>] [--model <id>] [--effort <id>] <prompt>
+  gamchi worker respond --json --request-id <id> --decision <accept|acceptForSession|decline|cancel> [--home <absolute-path>]
 ";
 
 const MAX_WAIT_MS: u64 = 50_000;
@@ -116,10 +116,7 @@ fn cmd_start(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u
             0
         }
         Err(err) => {
-            write_all(
-                stderr,
-                &format!("SAMCHI_FOR_GROK_STARTUP_ERROR ACP {err}\n"),
-            );
+            write_all(stderr, &format!("GAMCHI_STARTUP_ERROR ACP {err}\n"));
             1
         }
     }
@@ -253,10 +250,7 @@ fn cmd_followup(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -
             0
         }
         Err(err) => {
-            write_all(
-                stderr,
-                &format!("SAMCHI_FOR_GROK_STARTUP_ERROR ACP {err}\n"),
-            );
+            write_all(stderr, &format!("GAMCHI_STARTUP_ERROR ACP {err}\n"));
             1
         }
     }
@@ -473,7 +467,7 @@ fn open_home(explicit: Option<&Path>, stderr: &mut dyn Write) -> Result<PathBuf,
         Err(HomeError { reason }) => {
             write_all(
                 stderr,
-                &format!("SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG {reason}\n"),
+                &format!("GAMCHI_STARTUP_ERROR INVALID_CONFIG {reason}\n"),
             );
             Err(1)
         }
@@ -486,10 +480,7 @@ fn open_ledger(explicit: Option<&Path>, stderr: &mut dyn Write) -> Result<Ledger
 }
 
 fn ledger_err(stderr: &mut dyn Write, err: LedgerError) -> u8 {
-    write_all(
-        stderr,
-        &format!("SAMCHI_FOR_GROK_STARTUP_ERROR LEDGER {err}\n"),
-    );
+    write_all(stderr, &format!("GAMCHI_STARTUP_ERROR LEDGER {err}\n"));
     1
 }
 
@@ -498,7 +489,7 @@ fn write_json(w: &mut dyn Write, v: &Value) {
 }
 
 fn write_err(w: &mut dyn Write, code: &str) {
-    write_all(w, &format!("SAMCHI_FOR_GROK_STARTUP_ERROR {code}\n"));
+    write_all(w, &format!("GAMCHI_STARTUP_ERROR {code}\n"));
 }
 
 fn write_all(w: &mut dyn Write, s: &str) {

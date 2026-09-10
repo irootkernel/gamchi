@@ -1,8 +1,8 @@
 /bin/
 /target/
-# Sorage handoff marker (not the samchi-for-grok ledger; ledger is ~/.samchi-for-grok)
+# Sorage handoff marker (not the gamchi ledger; ledger is ~/.gamchi)
 .sorage/
-.samchi-for-grok/
+.gamchi/
 .omc/
 # Mulgae project policy and local state
 /.mulgae/*

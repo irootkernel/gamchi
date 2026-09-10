@@ -62,7 +62,7 @@ matching the TASK-004 capture shape. The resolved ids replace
 
 ## Model and reasoning effort
 
-Samchi owns omitted `model` and `effort`. Do not inherit
+Gamchi owns omitted `model` and `effort`. Do not inherit
 `~/.grok/config.toml`. There is no project-local or cwd config file.
 
 Per field, the first **present** non-blank value wins:
@@ -71,8 +71,8 @@ Per field, the first **present** non-blank value wins:
 2. Home config `<resolved-home>/config.yaml`
 3. Built-in `grok-4.6` / `high`
 
-`resolved-home` is `--home`, then `SAMCHI_FOR_GROK_HOME`, then
-`~/.samchi-for-grok` (the ledger home). Spawn does not create the file.
+`resolved-home` is `--home`, then `GAMCHI_HOME`, then
+`~/.gamchi` (the ledger home). Spawn does not create the file.
 
 Home config is YAML with optional keys `default_model` and
 `default_effort` only. Those keys fill omitted spawn `model` and

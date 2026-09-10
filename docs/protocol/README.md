@@ -4,7 +4,7 @@ Language: English.
 
 This directory pins the Codex app-server 0.149.0 **consumer subset** that
 Dolgorae requires of a Codex app-server. The subset is a **client requirement
-list**, not samchi-for-grok's server item allowlist. samchi-for-grok's emit
+list**, not gamchi's server item allowlist. gamchi's emit
 allowlist is [ACP item mapping](../specs/acp-item-mapping.md). The artifact
 itself sets `architecture_contract_eligible: true` and
 `production_runtime_eligible: false` (Dolgorae's Codex production campaign,
@@ -21,7 +21,7 @@ not a ban on using these wire shapes).
 The subset bytes were copied from the local Dolgorae checkout
 `/Users/draccoon/Workspace/RootKernel/dolgorae/dolgorae` at commit
 `a72a2a9a4482304d206b0fe517375ce84d5f698e`. The digest matches the CCAS pin
-of the same file. A byte change requires an explicit samchi-for-grok Task; do
+of the same file. A byte change requires an explicit gamchi Task; do
 not refresh from a moving Dolgorae tree.
 
 ## Relationship
@@ -29,7 +29,7 @@ not refresh from a moving Dolgorae tree.
 ```text
 Dolgorae worker  --WebSocket over unix://  Codex app-server 0.149.0 subset-->  Codex
                                                                           -->  CCAS (Claude)
-                                                                          -->  samchi-for-grok (Grok, EPIC-005)
+                                                                          -->  gamchi (Grok, EPIC-005)
 ```
 
 Dolgorae is a **client**. It launches `<executable> app-server --listen unix://<socket>`,
@@ -39,16 +39,16 @@ and `turn/start|interrupt`. It requires `optOutNotificationMethods: []` so
 `item/started`, `item/completed`, `thread/started`, and turn lifecycle are
 not suppressed. JSON-RPC objects omit the `jsonrpc` member.
 
-samchi-for-grok is a **server** on that same wire. Honest identity:
+gamchi is a **server** on that same wire. Honest identity:
 
-- `userAgent` is `samchi-for-grok/app-server-v1`, not Codex and not `ccas/app-server-v1`
+- `userAgent` is `gamchi/app-server-v1`, not Codex and not `ccas/app-server-v1`
 - `capabilities.ccas` is rejected
 - models are Grok, not Claude or Codex
 
 Dolgorae's Profile registry today validates a Codex executable, `CODEX_HOME`,
 and the 0.149.0 schema campaign. Pointing a Dolgorae Profile at
-`samchi-for-grok` is a Dolgorae change, not a samchi-for-grok v1 claim.
-EPIC-005 proves a Dolgorae-**shaped** client against samchi-for-grok's socket.
+`gamchi` is a Dolgorae change, not a gamchi v1 claim.
+EPIC-005 proves a Dolgorae-**shaped** client against gamchi's socket.
 
 Transport bounds taken from Dolgorae `src/app_server.rs` (same numbers CCAS
 REQ-TRANSPORT-004 uses):
@@ -85,7 +85,7 @@ Occupied Unix listen paths fail closed and are not unlinked.
 ## Consumer scenarios (TASK-019)
 
 A Dolgorae-**shaped** client, not a Dolgorae Profile, proves these five named
-scenarios offline against `samchi-for-grok app-server`. Live Grok is not
+scenarios offline against `gamchi app-server`. Live Grok is not
 required. `thread/fork` stays fail-closed; ADR-0002 did not decide it and
 TASK-019 recorded no new capture.
 
@@ -110,14 +110,14 @@ Result:
 ```text
 {
   "runtime": "grok",
-  "userAgent": "samchi-for-grok/app-server-v1",
+  "userAgent": "gamchi/app-server-v1",
   "home": "<absolute ledger home>"
 }
 ```
 
 `runtime` is the Grok identity. `userAgent` matches `initialize`. `home` is
-the resolved ledger root (`--home`, then `SAMCHI_FOR_GROK_HOME`, then
-`~/.samchi-for-grok`). Absent `thread/read` is JSON-RPC `-32600` from the
+the resolved ledger root (`--home`, then `GAMCHI_HOME`, then
+`~/.gamchi`). Absent `thread/read` is JSON-RPC `-32600` from the
 typed ledger `NotFound` (not from other `thread/read` param errors, which
 stay `-32602`). Other methods keep the existing `-32602` fail-closed mapping.
 
@@ -126,5 +126,5 @@ stay `-32602`). Other methods keep the existing `-32602` fail-closed mapping.
 Rust types in `crates/core` (`source_wire`) close what the **subset bytes actually name**:
 client methods, approval policies, sandbox values, terminal turn statuses,
 server-request method names, and approval decisions. Public ThreadItem
-**emit** types are samchi-for-grok policy (ACP-projectable) and are tested as
+**emit** types are gamchi policy (ACP-projectable) and are tested as
 such, not as a subset-derived allowlist.

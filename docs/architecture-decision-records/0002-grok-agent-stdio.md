@@ -27,7 +27,7 @@ This ADR decides from that capture only.
 
 These three commands are named so the choice is explicit:
 
-- `grok agent stdio` — chosen for v1. The samchi-for-grok process (MCP server
+- `grok agent stdio` — chosen for v1. The gamchi process (MCP server
   or CLI `start`) spawns the child and owns it. `--no-leader` keeps that
   parent as the owner.
 - `grok agent serve` — not the v1 owner. Not captured. Unobserved as an

@@ -104,7 +104,7 @@ pub fn admit_in_background(
 }
 
 pub fn acp_command() -> AgentCommand {
-    match std::env::var_os("SAMCHI_FOR_GROK_ACP_PROGRAM") {
+    match std::env::var_os("GAMCHI_ACP_PROGRAM") {
         Some(p) => AgentCommand::Override {
             program: PathBuf::from(p),
             args: Vec::new(),

@@ -29,7 +29,7 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Honest initialize identity. Kept out of `samchi-core`.
-pub(crate) const USER_AGENT: &str = "samchi-for-grok/app-server-v1";
+pub(crate) const USER_AGENT: &str = "gamchi/app-server-v1";
 const INVALID_REQUEST: i64 = -32600;
 const METHOD_NOT_FOUND: i64 = -32602;
 const GROK_RUNTIME_READ: &str = "grok/runtime/read";
@@ -68,7 +68,7 @@ pub fn run(args: &[&str], stderr: &mut dyn Write) -> u8 {
     let cfg = match parse_args(args) {
         Ok(c) => c,
         Err(msg) => {
-            let _ = writeln!(stderr, "SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG");
+            let _ = writeln!(stderr, "GAMCHI_STARTUP_ERROR INVALID_CONFIG");
             let _ = writeln!(stderr, "{msg}");
             return 1;
         }
@@ -76,7 +76,7 @@ pub fn run(args: &[&str], stderr: &mut dyn Write) -> u8 {
     let home = match open_home(cfg.home.as_deref()) {
         Ok(h) => h,
         Err(reason) => {
-            let _ = writeln!(stderr, "SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG");
+            let _ = writeln!(stderr, "GAMCHI_STARTUP_ERROR INVALID_CONFIG");
             let _ = writeln!(stderr, "{reason}");
             return 1;
         }
@@ -84,11 +84,11 @@ pub fn run(args: &[&str], stderr: &mut dyn Write) -> u8 {
     let listener = match bind_listen(&cfg.socket_path) {
         Ok(l) => l,
         Err(BindError::Occupied) => {
-            let _ = writeln!(stderr, "SAMCHI_FOR_GROK_STARTUP_ERROR OCCUPIED_PATH");
+            let _ = writeln!(stderr, "GAMCHI_STARTUP_ERROR OCCUPIED_PATH");
             return 1;
         }
         Err(BindError::Other(msg)) => {
-            let _ = writeln!(stderr, "SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG");
+            let _ = writeln!(stderr, "GAMCHI_STARTUP_ERROR INVALID_CONFIG");
             let _ = writeln!(stderr, "{msg}");
             return 1;
         }
@@ -901,7 +901,7 @@ fn model_list_stub() -> Value {
 
 /// Advertisement only. Listing failure is not a spawn gate.
 fn model_list_result() -> Value {
-    if let Ok(path) = std::env::var("SAMCHI_FOR_GROK_MODEL_LIST_FIXTURE") {
+    if let Ok(path) = std::env::var("GAMCHI_MODEL_LIST_FIXTURE") {
         if let Ok(body) = std::fs::read_to_string(&path) {
             if let Ok(parsed) = serde_json::from_str::<Value>(&body) {
                 if parsed.get("data").is_some() {

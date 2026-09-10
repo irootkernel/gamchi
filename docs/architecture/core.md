@@ -2,12 +2,12 @@
 
 Language: English.
 
-**samchi-for-grok is Grok-only.** The binary talks to Grok. It does not run
+**gamchi is Grok-only.** The binary talks to Grok. It does not run
 Claude or GLM.
 
 The **structure** of its core (ledger, generation, thread/turn, facades) is
 what a later Claude backend or zcode/GLM backend can copy or extract. Those
-products are not features of samchi-for-grok.
+products are not features of gamchi.
 
 ## Place in the Dolgorae map
 
@@ -15,8 +15,8 @@ products are not features of samchi-for-grok.
 | --- | --- | --- |
 | Codex | native `codex app-server` | unchanged |
 | Claude | CCAS today | A future Claude backend may reuse this core’s *shape*, not this binary |
-| Grok | **samchi-for-grok** | this repo |
-| GLM / zcode | later | reuse core structure / crate extract; not a samchi-for-grok adapter slot |
+| Grok | **gamchi** | this repo |
+| GLM / zcode | later | reuse core structure / crate extract; not a gamchi adapter slot |
 
 v1 does not implement Claude or GLM. Do not add `adapter-claude` or
 `adapter-glm` packages here.
@@ -40,7 +40,7 @@ v1 does not implement Claude or GLM. Do not add `adapter-claude` or
                            grok agent ACP
 ```
 
-Keep Grok-specific mapping, catalog, and `userAgent=samchi-for-grok/app-server-v1`
+Keep Grok-specific mapping, catalog, and `userAgent=gamchi/app-server-v1`
 out of core so a later extract does not drag Grok with it.
 
 ### Core owns
@@ -91,7 +91,7 @@ publishes MCP stdio six tools (`grok_spawn` returns immediately; the MCP
 process owns the child). TASK-025 publishes optional `model` / `effort` on
 MCP `grok_spawn` / `grok_followup` and CLI `worker start` / `followup`.
 Follow-up model mismatch fails closed. The skill recommends gitignoring
-`.samchi-for-grok/` and does not edit that file. TASK-010 ships `use-samchi-for-grok` and Codex/Claude
+`.gamchi/` and does not edit that file. TASK-010 ships `use-gamchi` and Codex/Claude
 snippets (`tool_timeout_sec = 3600`); copy them only when the user asks.
 TASK-011 publishes MCP `grok_cancel` and CLI `worker cancel`: process-group
 teardown of the `grok agent stdio` child, TurnStatus `interrupted`. Host
@@ -108,7 +108,7 @@ TASK-015 publishes the app-server facade listen:
 Unix socket, upgrades HTTP/1.1 GET `/` to WebSocket, and fails closed on an
 occupied path. TASK-016 publishes honest JSON-RPC `initialize` /
 `initialized` / `account/read` / Grok `model/list` on that socket.
-`userAgent=samchi-for-grok/app-server-v1` stays out of core.
+`userAgent=gamchi/app-server-v1` stays out of core.
 `capabilities.ccas` is JSON-RPC `-32602`. TASK-026 may advertise live
 or fixture Grok ids on `model/list`; listing failure still returns the
 stub row and is not a spawn gate. Omitted `thread/start` model uses the
@@ -134,4 +134,4 @@ stays out of `samchi-core`. Result shape is `{runtime:"grok", userAgent, home}`.
 Ship: extractable core + CLI/MCP/app-server facades + **Grok** ACP adapter.
 
 Do not: Claude/GLM inside this binary, importing CCAS, teaching Dolgorae to
-select samchi-for-grok as a Profile (Dolgorae change).
+select gamchi as a Profile (Dolgorae change).

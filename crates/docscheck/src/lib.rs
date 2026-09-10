@@ -1,5 +1,5 @@
 //! Validates that docs/roadmap/README.md is the sole lifecycle authority
-//! for samchi-for-grok epics and tasks (TASK-001).
+//! for gamchi epics and tasks (TASK-001).
 
 use regex::Regex;
 use std::collections::HashMap;
@@ -7,6 +7,10 @@ use std::fmt;
 use std::fs;
 use std::path::Path;
 use std::sync::LazyLock;
+
+mod leftover;
+
+pub use leftover::check_leftover_names;
 
 pub const ROADMAP_PATH: &str = "docs/roadmap/README.md";
 
@@ -314,8 +318,14 @@ mod tests {
     }
 
     #[test]
+    fn checked_in_leftover_names() {
+        let vs = check_leftover_names(find_repo_root());
+        assert!(vs.is_empty(), "leftover-name violations: {vs:?}");
+    }
+
+    #[test]
     fn rejects_wrong_task_count() {
-        let vs = check("# samchi-for-grok\n\nCurrent Task: none.\nNext eligible Task: none.\n");
+        let vs = check("# gamchi\n\nCurrent Task: none.\nNext eligible Task: none.\n");
         assert!(
             has_check(&vs, "task-count"),
             "expected task-count, got {vs:?}"
@@ -375,20 +385,23 @@ mod tests {
         assert_eq!(task_status(&body, "025").as_deref(), Some("Completed"));
         assert_eq!(task_status(&body, "026").as_deref(), Some("Completed"));
         assert_eq!(task_status(&body, "027").as_deref(), Some("Completed"));
-        assert_eq!(task_status(&body, "028").as_deref(), Some("Planned"));
+        assert_eq!(task_status(&body, "028").as_deref(), Some("Completed"));
         assert_eq!(current_task(&body).as_deref(), Some("none"));
-        assert_eq!(next_eligible_task(&body).as_deref(), Some("TASK-028"));
+        assert_eq!(next_eligible_task(&body).as_deref(), Some("none"));
         assert_eq!(epic_status(&body, "EPIC-002").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-003").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-004").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-005").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-006").as_deref(), Some("Completed"));
-        assert_eq!(epic_status(&body, "EPIC-007").as_deref(), Some("Planned"));
+        assert_eq!(
+            epic_status(&body, "EPIC-007").as_deref(),
+            Some("In Progress")
+        );
         assert_eq!(phase_status(&body, 1).as_deref(), Some("Completed"));
         assert_eq!(phase_status(&body, 2).as_deref(), Some("Completed"));
         assert_eq!(phase_status(&body, 3).as_deref(), Some("Completed"));
         assert_eq!(phase_status(&body, 4).as_deref(), Some("Completed"));
-        assert_eq!(phase_status(&body, 5).as_deref(), Some("Planned"));
+        assert_eq!(phase_status(&body, 5).as_deref(), Some("In Progress"));
     }
 
     #[test]

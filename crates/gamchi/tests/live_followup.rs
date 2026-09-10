@@ -1,7 +1,7 @@
 //! Live MCP spawn→await then grok_followup on the same ACP session.
 //!
 //! Ignored so `make test` stays offline. Run:
-//! `cargo test -p samchi-for-grok --test live_followup -- --ignored --nocapture`
+//! `cargo test -p gamchi --test live_followup -- --ignored --nocapture`
 //!
 //! Disposable git cwd and home. Does not edit user host config.
 
@@ -12,7 +12,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_samchi-for-grok")
+    env!("CARGO_BIN_EXE_gamchi")
 }
 
 fn init_git(cwd: &Path) {

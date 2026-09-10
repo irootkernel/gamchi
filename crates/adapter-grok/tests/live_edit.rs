@@ -11,7 +11,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 
-const MARKER: &str = "samchi-for-grok-task-007-live-edit";
+const MARKER: &str = "gamchi-task-007-live-edit";
 const FILE_NAME: &str = "TASK007_LIVE.txt";
 
 #[test]

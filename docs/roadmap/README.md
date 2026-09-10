@@ -1,4 +1,4 @@
-# samchi-for-grok Roadmap
+# gamchi Roadmap
 
 Authority: Sole Phase, Epic, Task, dependency, execution-order, and lifecycle
 status.
@@ -34,7 +34,7 @@ Do not fall back to `grok -p`. v1 uses parent-owned `grok agent stdio` with
 `--no-leader`; `grok agent serve` and `grok agent leader` are not the v1
 owner.
 
-`samchi-for-grok` is **Grok-only**. The core is structured so a later Claude
+`gamchi` is **Grok-only**. The core is structured so a later Claude
 or zcode backend can reuse it; those adapters are not this repo. Language:
 Rust (ADR-0001).
 
@@ -46,7 +46,7 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: `TASK-028`.
+Next eligible Task: none.
 
 ## Phase index
 
@@ -56,7 +56,7 @@ Next eligible Task: `TASK-028`.
 | Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `Completed` | EPIC-003..EPIC-004 |
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Completed` | EPIC-005 |
 | Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `Completed` | EPIC-006 |
-| Phase 5 — Product identity | Grok worker command is gamchi | `Planned` | EPIC-007 |
+| Phase 5 — Product identity | Grok worker command is gamchi | `In Progress` | EPIC-007 |
 
 ## EPIC-001: Foundation
 
@@ -153,7 +153,7 @@ Depends on: EPIC-004
 
 Canonical Outcomes: `app-server --listen unix://` HTTP/WS upgrade and occupied-path fail-closed
 ([protocol/README.md](../protocol/README.md));
-honest `userAgent=samchi-for-grok/app-server-v1` and `capabilities.ccas` `-32602`
+honest `userAgent=gamchi/app-server-v1` and `capabilities.ccas` `-32602`
 ([architecture/core.md](../architecture/core.md));
 same-ledger thread/turn with omitted socket `read-only`/`untrusted`
 ([mcp-async-host-contract.md](../specs/mcp-async-host-contract.md));
@@ -188,7 +188,7 @@ ignored live argv proof ([TESTING.md](../../TESTING.md)).
 
 Parents choose a Grok model and reasoning effort when they spawn. Omitted
 fields resolve from home `config.yaml`, then built-in `grok-4.6` / `high`,
-and are placed on the Grok argv. Samchi returns an error if the child
+and are placed on the Grok argv. Gamchi returns an error if the child
 does not start. A thread freezes its model; later turns may change
 effort only. Do not rewrite completed Tasks.
 
@@ -202,7 +202,7 @@ effort only. Do not rewrite completed Tasks.
 
 ## EPIC-007: Product identity Gamchi
 
-Status: `Planned`
+Status: `In Progress`
 
 Depends on: EPIC-006
 
@@ -243,4 +243,4 @@ allowlisted leftover-name search. No live Grok rerun. No old-name aliases.
 
 | Task | Title | Status | Depends on | Done when |
 | --- | --- | --- | --- | --- |
-| [TASK-028](#epic-007-product-identity-gamchi) | Rename product identity to Gamchi | `Planned` | TASK-027 | Live runtime/diagnostic/doc identity is `gamchi` (binary, facade crate, Makefile, CLI usage/version, ACP client name, fake-agent/harness names, userAgent, GAMCHI_* including STARTUP_ERROR, home, skill, MCP server key, live docs/ADRs/TESTING.md). `samchi-core` and `samchi-adapter-grok` stay. MCP tools stay `grok_*`. Hard cutover: no SAMCHI_FOR_GROK_* fallback, no ~/.samchi-for-grok auto-discover/copy/migrate; `--home` still accepts any absolute path. Allowlist: completed Task rows; task-004 capture bytes and matching literals; GitHub remote/clone path. `make test`, `make build`, `./bin/gamchi version --json`, home precedence, host packaging, allowlisted leftover search. No live Grok rerun. No old-name aliases |
+| [TASK-028](#epic-007-product-identity-gamchi) | Rename product identity to Gamchi | `Completed` | TASK-027 | Live runtime/diagnostic/doc identity is `gamchi` (binary, facade crate, Makefile, CLI usage/version, ACP client name, fake-agent/harness names, userAgent, GAMCHI_* including STARTUP_ERROR, home, skill, MCP server key, live docs/ADRs/TESTING.md). `samchi-core` and `samchi-adapter-grok` stay. MCP tools stay `grok_*`. Hard cutover: no SAMCHI_FOR_GROK_* fallback, no ~/.samchi-for-grok auto-discover/copy/migrate; `--home` still accepts any absolute path. Allowlist: completed Task rows; task-004 capture bytes and matching literals; GitHub remote/clone path. `make test`, `make build`, `./bin/gamchi version --json`, home precedence, host packaging, allowlisted leftover search. No live Grok rerun. No old-name aliases |

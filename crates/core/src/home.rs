@@ -4,10 +4,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 /// Environment override. Absolute path required when set.
-pub const ENV_HOME: &str = "SAMCHI_FOR_GROK_HOME";
+pub const ENV_HOME: &str = "GAMCHI_HOME";
 
 /// Directory name under the user home when neither `--home` nor the env is set.
-pub const DEFAULT_DIR_NAME: &str = ".samchi-for-grok";
+pub const DEFAULT_DIR_NAME: &str = ".gamchi";
 
 /// Failed home resolution.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,8 +25,8 @@ impl std::error::Error for HomeError {}
 
 /// Resolve the ledger root.
 ///
-/// Order: `explicit` (`--home`), then `env_home` (`SAMCHI_FOR_GROK_HOME`),
-/// then `user_home` / `.samchi-for-grok`. `--home` and the env value must be
+/// Order: `explicit` (`--home`), then `env_home` (`GAMCHI_HOME`),
+/// then `user_home` / `.gamchi`. `--home` and the env value must be
 /// absolute. Empty env is treated as unset.
 pub fn resolve_home(
     explicit: Option<&Path>,
@@ -49,7 +49,7 @@ pub fn resolve_home(
     Ok(user_home.join(DEFAULT_DIR_NAME))
 }
 
-/// Read `SAMCHI_FOR_GROK_HOME` and `HOME` from the process environment.
+/// Read `GAMCHI_HOME` and `HOME` from the process environment.
 pub fn resolve_home_from_os(explicit: Option<&Path>) -> Result<PathBuf, HomeError> {
     let env_home = std::env::var_os(ENV_HOME).map(PathBuf::from);
     let user_home = std::env::var_os("HOME")
@@ -99,14 +99,14 @@ mod tests {
     #[test]
     fn default_is_dot_dir_under_user_home() {
         let got = resolve_home(None, None, Path::new("/Users/sam")).unwrap();
-        assert_eq!(got, PathBuf::from("/Users/sam/.samchi-for-grok"));
+        assert_eq!(got, PathBuf::from("/Users/sam/.gamchi"));
         assert_ne!(got, PathBuf::from("/Users/sam"));
     }
 
     #[test]
     fn empty_env_falls_through_to_default() {
         let got = resolve_home(None, Some(Path::new("")), Path::new("/Users/sam")).unwrap();
-        assert_eq!(got, PathBuf::from("/Users/sam/.samchi-for-grok"));
+        assert_eq!(got, PathBuf::from("/Users/sam/.gamchi"));
     }
 
     #[test]

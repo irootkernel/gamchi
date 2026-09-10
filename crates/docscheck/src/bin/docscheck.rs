@@ -1,7 +1,8 @@
-use docscheck::{check_file, ROADMAP_PATH};
+use docscheck::{check_file, check_leftover_names, ROADMAP_PATH};
 
 fn main() {
-    let vs = check_file(ROADMAP_PATH);
+    let mut vs = check_file(ROADMAP_PATH);
+    vs.extend(check_leftover_names("."));
     if vs.is_empty() {
         return;
     }

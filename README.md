@@ -1,10 +1,10 @@
-# Samchi for Grok
+# Gamchi
 
 **Grok-only** worker: facades + an extractable core + a Grok ACP adapter.
 Claude and GLM are not this binary. A later backend may reuse the core’s
 shape. CCAS stays Claude’s backend for now.
 
-The command and crate identifier is `samchi-for-grok`. Parents delegate
+The command and crate identifier is `gamchi`. Parents delegate
 **review or implementation**. The Grok adapter uses ACP (`grok agent stdio`),
 not print mode. MCP spawn defaults to yolo + workspace-write.
 
@@ -16,8 +16,8 @@ Dolgorae            --app-server--> facade
 
 See [docs/architecture/core.md](docs/architecture/core.md). Core language is
 Rust ([ADR-0001](docs/architecture-decision-records/0001-rust-core.md)). The
-core crate is `crates/core` (`samchi-core`); the `samchi-for-grok` binary stub
-is `crates/samchi-for-grok`; the Grok ACP adapter (fake agent + stdio harness)
+core crate is `crates/core` (`samchi-core`); the `gamchi` binary stub
+is `crates/gamchi`; the Grok ACP adapter (fake agent + stdio harness)
 is `crates/adapter-grok` (`samchi-adapter-grok`); roadmap docscheck is
 `crates/docscheck`.
 
@@ -28,7 +28,7 @@ completion signal. Details:
 
 The CCAS-compatible Unix-domain app-server is layered on after the worker is
 proven. That socket speaks the same Codex 0.149.0 subset Dolgorae requires as
-a client; see [docs/protocol/](docs/protocol/). samchi-for-grok does not import
+a client; see [docs/protocol/](docs/protocol/). gamchi does not import
 Dolgorae.
 
 ## Status
@@ -48,14 +48,14 @@ ACP adapter spawn and item mapper live in `crates/adapter-grok`.
 ```bash
 make test
 make build
-./bin/samchi-for-grok version
+./bin/gamchi version
 ```
 
-`samchi-for-grok worker start|wait|status|result|list|cancel|followup|respond --json`
-and `samchi-for-grok mcp` (spawn, await, wait, status, result, list, cancel,
+`gamchi worker start|wait|status|result|list|cancel|followup|respond --json`
+and `gamchi mcp` (spawn, await, wait, status, result, list, cancel,
 followup, respond) are implemented. Host packaging lives in
-[skills/use-samchi-for-grok](skills/use-samchi-for-grok/SKILL.md) and
-[docs/ops](docs/ops/). `samchi-for-grok app-server --listen unix://<absolute-path>`
+[skills/use-gamchi](skills/use-gamchi/SKILL.md) and
+[docs/ops](docs/ops/). `gamchi app-server --listen unix://<absolute-path>`
 binds a Unix socket, upgrades HTTP/1.1 GET `/` to WebSocket, and answers
 honest `initialize` / `initialized` / `account/read` / Grok `model/list`.
 Occupied paths fail closed. `thread/start`, `thread/resume`, `thread/read`,

@@ -3,7 +3,7 @@
 Status: Adopted before TASK-007. Language: English.
 
 The Dolgorae subset is a **client requirement** against Codex, not
-samchi-for-grok's emit allowlist. This file is samchi-for-grok policy for what
+gamchi's emit allowlist. This file is gamchi policy for what
 the ACP adapter may project onto `source_wire` items. TASK-007 implements this
 table; it does not invent another.
 
@@ -51,12 +51,12 @@ client, add them in a new Task with a source.
 Do not emit a ThreadItem. Do not suppress ACP lifecycle notifications to hide
 reasoning.
 
-## Excluded-fatal (subset schema branches samchi-for-grok will not emit)
+## Excluded-fatal (subset schema branches gamchi will not emit)
 
 If the adapter would have to project `subAgentActivity` or
 `collabAgentToolCall`, fail the turn (`failed`). Those strings exist in the
 subset as **schema presence** Dolgorae requires of Codex, not as
-samchi-for-grok emit targets.
+gamchi emit targets.
 
 Unknown item types are neither public nor excluded-fatal: the adapter skips
 them.

@@ -21,7 +21,7 @@ pub fn run_mcp(args: &[&str], stdin: &mut dyn BufRead, stdout: &mut dyn Write) -
     let home = match parse_home(args) {
         Ok(h) => h,
         Err(_) => {
-            let _ = writeln!(io::stderr(), "SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG");
+            let _ = writeln!(io::stderr(), "GAMCHI_STARTUP_ERROR INVALID_CONFIG");
             return 1;
         }
     };

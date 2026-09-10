@@ -16,7 +16,7 @@ fn read(rel: &str) -> String {
 
 #[test]
 fn skill_states_async_host_contract() {
-    let skill = read("skills/use-samchi-for-grok/SKILL.md");
+    let skill = read("skills/use-gamchi/SKILL.md");
     for needle in [
         "Call `grok_spawn` exactly once",
         "Call `grok_await` with that `turn_id`",
@@ -30,7 +30,7 @@ fn skill_states_async_host_contract() {
         "tool_timeout_sec = 3600",
         "Timeout does not cancel the turn",
         "Do not silently edit user config",
-        ".samchi-for-grok/",
+        ".gamchi/",
         "Do not edit that file for the user",
     ] {
         assert!(skill.contains(needle), "skill missing {needle:?}\n{skill}");
@@ -40,8 +40,8 @@ fn skill_states_async_host_contract() {
 #[test]
 fn codex_snippet_sets_hour_timeout() {
     let toml = read("docs/ops/codex-mcp.toml");
-    assert!(toml.contains("[mcp_servers.samchi-for-grok]"));
-    assert!(toml.contains("command = \"samchi-for-grok\""));
+    assert!(toml.contains("[mcp_servers.gamchi]"));
+    assert!(toml.contains("command = \"gamchi\""));
     assert!(toml.contains("args = [\"mcp\"]"));
     assert!(toml.contains("tool_timeout_sec = 3600"));
     assert!(toml.contains("Do not silently edit user config"));
@@ -51,12 +51,9 @@ fn codex_snippet_sets_hour_timeout() {
 fn claude_snippet_is_project_mcp_json() {
     let json = read("docs/ops/claude-mcp.json");
     let v: serde_json::Value = serde_json::from_str(&json).expect("json");
+    assert_eq!(v["mcpServers"]["gamchi"]["command"], "gamchi");
     assert_eq!(
-        v["mcpServers"]["samchi-for-grok"]["command"],
-        "samchi-for-grok"
-    );
-    assert_eq!(
-        v["mcpServers"]["samchi-for-grok"]["args"],
+        v["mcpServers"]["gamchi"]["args"],
         serde_json::json!(["mcp"])
     );
 }

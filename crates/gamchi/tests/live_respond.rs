@@ -1,7 +1,8 @@
-//! Live MCP spawn then grok_cancel. An in-flight prompt dies; the turn is interrupted.
+//! Live MCP untrusted spawn then grok_respond. A gated shell does not run
+//! without respond; the parent responds then awaits again.
 //!
 //! Ignored so `make test` stays offline. Run:
-//! `cargo test -p samchi-for-grok --test live_cancel -- --ignored --nocapture`
+//! `cargo test -p gamchi --test live_respond -- --ignored --nocapture`
 //!
 //! Disposable git cwd and home. Does not edit user host config.
 
@@ -9,11 +10,9 @@ use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::thread;
-use std::time::Duration;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_samchi-for-grok")
+    env!("CARGO_BIN_EXE_gamchi")
 }
 
 fn init_git(cwd: &Path) {
@@ -26,9 +25,9 @@ fn init_git(cwd: &Path) {
     assert!(Command::new("git")
         .args([
             "-c",
-            "user.email=task011@example.test",
+            "user.email=task013@example.test",
             "-c",
-            "user.name=task011",
+            "user.name=task013",
             "commit",
             "--allow-empty",
             "-m",
@@ -94,10 +93,13 @@ impl Drop for Rpc {
 
 #[test]
 #[ignore = "spawns live grok agent stdio; not part of make test"]
-fn live_in_flight_prompt_dies_and_turn_is_interrupted() {
+fn live_untrusted_waits_for_respond_then_completes() {
     let home = tempfile::tempdir().expect("home");
     let cwd = tempfile::tempdir().expect("cwd");
     init_git(cwd.path());
+    let marker = cwd.path().join("marker.txt");
+    let outside = std::env::temp_dir().join(format!("samchi-task013-{}.txt", std::process::id()));
+    let _ = std::fs::remove_file(&outside);
     let mut rpc = Rpc::start(home.path().to_str().unwrap());
     let _ = rpc.call(
         "initialize",
@@ -106,25 +108,53 @@ fn live_in_flight_prompt_dies_and_turn_is_interrupted() {
     let spawn = rpc.tool(
         "grok_spawn",
         json!({
-            "prompt": "Count slowly from 1 to 100000 in the reply. Do not stop until you reach 100000. Do not use tools.",
-            "cwd": cwd.path().to_str().unwrap()
+            "prompt": format!(
+                "Run exactly this shell command and no other: printf ok > {}. Do not skip the command.",
+                outside.display()
+            ),
+            "cwd": cwd.path().to_str().unwrap(),
+            "approvalPolicy": "untrusted"
         }),
     );
     let turn_id = spawn["turn_id"]
         .as_str()
         .unwrap_or_else(|| panic!("spawn {spawn}"))
         .to_string();
-    thread::sleep(Duration::from_millis(400));
-    let cancelled = rpc.tool("grok_cancel", json!({"turn_id": turn_id}));
+    let first = rpc.tool("grok_await", json!({"turn_id": turn_id}));
     assert_eq!(
-        cancelled["status"], "interrupted",
-        "cancel {cancelled} failure_reason={}",
-        cancelled["failure_reason"]
+        first["await_reason"], "pending_approval",
+        "untrusted must pause before the gated shell: {first}"
     );
-    let done = rpc.tool("grok_await", json!({"turn_id": turn_id}));
-    assert_eq!(
-        done["status"], "interrupted",
-        "await {done} failure_reason={}",
-        done["failure_reason"]
+    assert_eq!(first["status"], "inProgress");
+    assert!(
+        !marker.exists() && !outside.exists(),
+        "gated shell must not run before grok_respond"
     );
+    let request_id = first["request_id"]
+        .as_str()
+        .unwrap_or_else(|| panic!("request_id {first}"));
+    let _ = rpc.tool(
+        "grok_respond",
+        json!({"request_id": request_id, "decision": "accept"}),
+    );
+    let mut last = rpc.tool("grok_await", json!({"turn_id": turn_id}));
+    for _ in 0..4 {
+        if last["await_reason"] == "pending_approval" {
+            let rid = last["request_id"].as_str().expect("request_id");
+            let _ = rpc.tool(
+                "grok_respond",
+                json!({"request_id": rid, "decision": "accept"}),
+            );
+            last = rpc.tool("grok_await", json!({"turn_id": turn_id}));
+            continue;
+        }
+        break;
+    }
+    assert!(
+        last["status"] == "completed" || last["status"] == "interrupted",
+        "respond then await {last} failure_reason={}",
+        last["failure_reason"]
+    );
+    assert_ne!(last["status"].as_str(), Some("inProgress"));
+    let _ = std::fs::remove_file(&outside);
 }

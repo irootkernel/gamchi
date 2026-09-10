@@ -592,6 +592,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gamchi"
+version = "0.0.0"
+dependencies = [
+ "base64",
+ "samchi-adapter-grok",
+ "samchi-core",
+ "serde_json",
+ "sha1",
+ "tempfile",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1017,18 +1029,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "tempfile",
-]
-
-[[package]]
-name = "samchi-for-grok"
-version = "0.0.0"
-dependencies = [
- "base64",
- "samchi-adapter-grok",
- "samchi-core",
- "serde_json",
- "sha1",
  "tempfile",
 ]
 

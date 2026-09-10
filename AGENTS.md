@@ -1,6 +1,6 @@
 # AGENTS.md
 
-samchi-for-grok uses this file as local agent guidance.
+gamchi uses this file as local agent guidance.
 
 ## Core Behavior
 
@@ -66,18 +66,18 @@ samchi-for-grok uses this file as local agent guidance.
 
 ### Repository Index and Authorities
 
-- Product: Grok-only worker (facades + extractable core + Grok ACP adapter). Command and crate identifier is `samchi-for-grok`.
+- Product: Grok-only worker (facades + extractable core + Grok ACP adapter). Command and crate identifier is `gamchi`.
 - Language: Rust ([ADR-0001](docs/architecture-decision-records/0001-rust-core.md)).
 - Roadmap: [docs/roadmap/README.md](docs/roadmap/README.md) is the sole Phase, Epic, Task, dependency, execution-order, and lifecycle authority.
 - Specs: [docs/specs/](docs/specs/) (`product.md`, `mcp-async-host-contract.md`, `grok-launch.md`, `acp-item-mapping.md`).
 - Architecture: [docs/architecture/core.md](docs/architecture/core.md).
 - Protocol subset: [docs/protocol/](docs/protocol/).
-- Workspace members: `crates/core` (`samchi-core`), `crates/docscheck`, `crates/samchi-for-grok`, `crates/adapter-grok` (`samchi-adapter-grok`).
+- Workspace members: `crates/core` (`samchi-core`), `crates/docscheck`, `crates/gamchi`, `crates/adapter-grok` (`samchi-adapter-grok`).
 - Acceptance gate: `make test`. Makefile handlers are authoritative; disagreement with [TESTING.md](TESTING.md) is a blocking contract defect.
 - Other commands: `make test-prepare`, `make test-unit`, `make fmt-check`, `make clippy`, `make test-docs`, `make build`.
 - Gaori command IDs: `test`, `test-prepare`, `test-unit`.
-- Home resolution: `--home`, then `SAMCHI_FOR_GROK_HOME`, then `~/.samchi-for-grok`.
-- Ignored local runtime includes `/bin/`, `/target/`, `.sorage/`, `.samchi-for-grok/`, `.omc/`, `.gaori/` except portable tester files, and after this setup `/.mulgae/*` except `/.mulgae/config.yaml`.
+- Home resolution: `--home`, then `GAMCHI_HOME`, then `~/.gamchi`.
+- Ignored local runtime includes `/bin/`, `/target/`, `.sorage/`, `.gamchi/`, `.omc/`, `.gaori/` except portable tester files, and after this setup `/.mulgae/*` except `/.mulgae/config.yaml`.
 
 ### Commit Messages
 
@@ -88,9 +88,9 @@ samchi-for-grok uses this file as local agent guidance.
 
 ### Project-Specific Operating Rules
 
-- `samchi-for-grok` is **Grok-only**. Keep the core free of Grok/Claude/GLM SDKs so a later Claude or zcode backend can reuse that structure. Do not add Claude or GLM adapters in this repo. Do not import CCAS. Claude stays on CCAS until a separate project extracts the core.
+- `gamchi` is **Grok-only**. Keep the core free of Grok/Claude/GLM SDKs so a later Claude or zcode backend can reuse that structure. Do not add Claude or GLM adapters in this repo. Do not import CCAS. Claude stays on CCAS until a separate project extracts the core.
 - The MCP facade is a write-capable subagent (review *and* implementation). Default spawn is `approvalPolicy=never` and `sandbox=workspace-write`. The Grok adapter uses ACP (`grok agent stdio`), never `grok -p`. CLI `start` stays in the foreground; MCP spawn may return because the server process owns the child. Do not publish a tool before its Task implements it.
-- Dolgorae is the **consumer reference** for the Codex app-server 0.149.0 subset (`docs/protocol/`). samchi-for-grok is a server on that wire. Do not claim a Dolgorae Profile can launch samchi-for-grok until Dolgorae itself accepts that executable.
+- Dolgorae is the **consumer reference** for the Codex app-server 0.149.0 subset (`docs/protocol/`). gamchi is a server on that wire. Do not claim a Dolgorae Profile can launch gamchi until Dolgorae itself accepts that executable.
 - At most one Task may be `In Progress` or `In Review`. Follow the dependency order. A completed Task is immutable; later changes use a new Task.
 - Do not start EPIC-003 until EPIC-002 records a go ADR. Do not fall back to `grok -p` on a no-go. EPIC-002 already recorded a go ([ADR-0002](docs/architecture-decision-records/0002-grok-agent-stdio.md)); EPIC-003 is unblocked only for capabilities that ADR lists as observed.
 - Internal worker types live in `crates/core` (`source_wire`) and are Codex app-server `thread` / `turn` / `ThreadItem` from the pinned Dolgorae subset. Do not invent an ad hoc `job` JSON. Do not change subset bytes without a new Task.

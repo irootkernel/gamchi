@@ -8,11 +8,11 @@ use std::process::Command;
 use std::time::Instant;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_samchi-for-grok")
+    env!("CARGO_BIN_EXE_gamchi")
 }
 
 fn fake_agent() -> std::path::PathBuf {
-    let mut p = std::path::PathBuf::from(env!("CARGO_BIN_EXE_samchi-for-grok"));
+    let mut p = std::path::PathBuf::from(env!("CARGO_BIN_EXE_gamchi"));
     p.set_file_name("fake-acp-agent");
     p
 }
@@ -22,7 +22,7 @@ fn start_prints_ids_then_reaches_terminal() {
     let home = tempfile::tempdir().expect("home");
     let cwd = tempfile::tempdir().expect("cwd");
     let out = Command::new(bin())
-        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
         .args([
             "worker",
             "start",
@@ -120,8 +120,8 @@ fn cancel_interrupts_hanging_start() {
     let home = tempfile::tempdir().expect("home");
     let cwd = tempfile::tempdir().expect("cwd");
     let mut child = Command::new(bin())
-        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
-        .env("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_FAKE_HANG_SECS", "60")
         .args([
             "worker",
             "start",
@@ -186,8 +186,8 @@ fn owner_death_is_worker_gone_not_replayed() {
     let home = tempfile::tempdir().expect("home");
     let cwd = tempfile::tempdir().expect("cwd");
     let mut child = Command::new(bin())
-        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
-        .env("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_FAKE_HANG_SECS", "60")
         .args([
             "worker",
             "start",
@@ -282,8 +282,8 @@ fn respond_accepts_pending_then_cancel() {
     let home = tempfile::tempdir().expect("home");
     let cwd = tempfile::tempdir().expect("cwd");
     let mut child = Command::new(bin())
-        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
-        .env("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_FAKE_HANG_SECS", "60")
         .args([
             "worker",
             "start",
@@ -373,7 +373,7 @@ fn start_model_effort_and_followup_mismatch() {
     let home = tempfile::tempdir().expect("home");
     let cwd = tempfile::tempdir().expect("cwd");
     let blank = Command::new(bin())
-        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
         .args([
             "worker",
             "start",
@@ -395,7 +395,7 @@ fn start_model_effort_and_followup_mismatch() {
         String::from_utf8_lossy(&blank.stderr)
     );
     let start = Command::new(bin())
-        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
         .args([
             "worker",
             "start",
@@ -426,7 +426,7 @@ fn start_model_effort_and_followup_mismatch() {
     .unwrap();
     let thread_id = v["thread_id"].as_str().unwrap();
     let mismatch = Command::new(bin())
-        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
         .args([
             "worker",
             "followup",

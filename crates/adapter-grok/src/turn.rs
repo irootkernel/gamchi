@@ -302,7 +302,7 @@ async fn run_turn_async(
 
     let client_result = Client
         .builder()
-        .name("samchi-for-grok")
+        .name("gamchi")
         .on_receive_notification(
             {
                 let shared = shared_n;

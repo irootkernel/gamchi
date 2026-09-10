@@ -5,7 +5,7 @@
 
 ## Decision
 
-**samchi-for-grok is Grok-only.** Implement its supervision **core in Rust**, kept
+**gamchi is Grok-only.** Implement its supervision **core in Rust**, kept
 free of Grok SDK imports, so a later Claude or zcode/GLM backend can extract
 or copy that core. MCP and app-server are facades. ACP is the Grok adapter.
 
@@ -21,7 +21,7 @@ A future GLM backend should not clone ledger/transport. That reuse is
 
 - **Keep Go** to match CCAS and Gaori. Rejected: we do not import CCAS; Gaori
   is an await pattern, not a library we link.
-- **samchi-for-grok embeds Claude and GLM adapters.** Rejected: this product is Grok.
+- **gamchi embeds Claude and GLM adapters.** Rejected: this product is Grok.
 - **Replace CCAS in v1.** Rejected: Claude stays on CCAS until a separate
   backend project reuses this core.
 

@@ -1,7 +1,7 @@
 //! Live MCP spawn→await that edits a named file. Optional Claude/Codex parents.
 //!
 //! Ignored so `make test` stays offline. Run:
-//! `cargo test -p samchi-for-grok --test live_host -- --ignored --nocapture`
+//! `cargo test -p gamchi --test live_host -- --ignored --nocapture`
 //!
 //! Does not edit user host config. Each case uses a disposable git cwd and home.
 
@@ -13,13 +13,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Instant;
 
-const MARKER: &str = "samchi-for-grok-task-010-live-edit";
+const MARKER: &str = "gamchi-task-010-live-edit";
 const MCP_FILE: &str = "TASK010_LIVE.txt";
 const CLAUDE_FILE: &str = "TASK010_CLAUDE.txt";
 const CODEX_FILE: &str = "TASK010_CODEX.txt";
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_samchi-for-grok")
+    env!("CARGO_BIN_EXE_gamchi")
 }
 
 fn init_git(cwd: &Path) {
@@ -120,7 +120,7 @@ fn assert_host_used_spawn(home: &Path, cwd: &Path) {
     let turns = ledger.list_turns(Some(cwd_s)).expect("list");
     assert!(
         turns.iter().any(|t| t.status.is_terminal()),
-        "host did not spawn a samchi-for-grok turn for {cwd_s}: {turns:?}"
+        "host did not spawn a gamchi turn for {cwd_s}: {turns:?}"
     );
 }
 
@@ -167,7 +167,7 @@ fn which(name: &str) -> Option<PathBuf> {
 fn write_mcp_config(path: &Path, home: &Path) {
     let cfg = json!({
         "mcpServers": {
-            "samchi-for-grok": {
+            "gamchi": {
                 "command": bin(),
                 "args": ["mcp", "--home", home.to_str().unwrap()]
             }
@@ -177,14 +177,13 @@ fn write_mcp_config(path: &Path, home: &Path) {
 }
 
 fn skill_text() -> String {
-    let p =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../skills/use-samchi-for-grok/SKILL.md");
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../skills/use-gamchi/SKILL.md");
     fs::read_to_string(p).expect("skill")
 }
 
 fn host_prompt(file: &str, cwd: &Path) -> String {
     format!(
-        "You are supervising Grok through samchi-for-grok MCP. \
+        "You are supervising Grok through gamchi MCP. \
 Call grok_spawn exactly once with prompt={:?} and cwd={}. \
 Then call grok_await with the returned turn_id and wait until terminal. \
 Do not write {file} yourself. Do not poll grok_status. \
@@ -250,13 +249,13 @@ fn live_codex_spawn_await_edits_named_file() {
             "-C",
             cwd.path().to_str().unwrap(),
             "-c",
-            &format!("mcp_servers.samchi-for-grok.command={bin_s:?}"),
+            &format!("mcp_servers.gamchi.command={bin_s:?}"),
             "-c",
-            &format!("mcp_servers.samchi-for-grok.args={args}"),
+            &format!("mcp_servers.gamchi.args={args}"),
             "-c",
-            "mcp_servers.samchi-for-grok.tool_timeout_sec=3600",
+            "mcp_servers.gamchi.tool_timeout_sec=3600",
             "-c",
-            "mcp_servers.samchi-for-grok.required=true",
+            "mcp_servers.gamchi.required=true",
             &host_prompt(CODEX_FILE, cwd.path()),
         ])
         .output()
@@ -273,7 +272,7 @@ fn live_codex_spawn_await_edits_named_file() {
     let turns = ledger.list_turns(Some(cwd_s)).expect("list");
     assert!(
         turns.iter().any(|t| t.status.is_terminal()),
-        "host did not spawn a samchi-for-grok turn for {cwd_s}: {turns:?}\nstdout {stdout}\nstderr {stderr}"
+        "host did not spawn a gamchi turn for {cwd_s}: {turns:?}\nstdout {stdout}\nstderr {stderr}"
     );
     assert_marker(&cwd.path().join(CODEX_FILE));
 }

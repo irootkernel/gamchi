@@ -5,7 +5,7 @@ not required to implement.
 
 ## What it is
 
-**samchi-for-grok** is a **Grok-only** local worker. Parents
+**gamchi** is a **Grok-only** local worker. Parents
 delegate review *or* implementation. A later Claude or zcode backend may
 reuse the core’s shape; those adapters are not this product.
 
@@ -31,7 +31,7 @@ read-only review.
 Omitted `model` and `effort` on MCP spawn, CLI `worker start`, and
 app-server `thread/start` resolve in [grok-launch.md](grok-launch.md):
 explicit parent field, then home `config.yaml` keys `default_model` and
-`default_effort`, then built-in `grok-4.6` / `high`. Samchi does not
+`default_effort`, then built-in `grok-4.6` / `high`. Gamchi does not
 inherit `~/.grok/config.toml`. There is no project-local config.
 
 ## Exclusions
@@ -39,7 +39,7 @@ inherit `~/.grok/config.toml`. There is no project-local config.
 - `grok -p` print mode
 - Claude or GLM adapters in this binary
 - Importing CCAS or Dolgorae
-- Claiming a Dolgorae Profile can select samchi-for-grok (Dolgorae change)
+- Claiming a Dolgorae Profile can select gamchi (Dolgorae change)
 - MCP push as the completion signal
 - Detached daemon / `grok agent leader` as v1 owner
   ([ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md):

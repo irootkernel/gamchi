@@ -7,11 +7,11 @@ user asks. Do not silently edit user host config.
 
 | Artifact | Parent |
 | --- | --- |
-| [codex-mcp.toml](codex-mcp.toml) | Codex `mcp_servers.samchi-for-grok` |
+| [codex-mcp.toml](codex-mcp.toml) | Codex `mcp_servers.gamchi` |
 | [claude-mcp.json](claude-mcp.json) | Claude Code project `.mcp.json` |
-| [../../skills/use-samchi-for-grok/SKILL.md](../../skills/use-samchi-for-grok/SKILL.md) | Agent skill |
+| [../../skills/use-gamchi/SKILL.md](../../skills/use-gamchi/SKILL.md) | Agent skill |
 
-`grok_await` has no samchi-for-grok timeout. Codex `tool_timeout_sec` must be
+`grok_await` has no gamchi timeout. Codex `tool_timeout_sec` must be
 3600. Host observer timeout of await is not `grok_cancel`. `grok_cancel` is
 published and tears down the Grok process group.
 

@@ -42,7 +42,7 @@ Future candidates (not lifecycle):
   (EPIC-006 confirmation Low F004). Re-enter if a consumer needs
   session/update model bytes beyond stored `turn.model`. TASK-027
   argv proof still holds.
-- Add a test that a broken `SAMCHI_FOR_GROK_MODEL_LIST_FIXTURE`
+- Add a test that a broken `GAMCHI_MODEL_LIST_FIXTURE`
   still returns the stub `model/list` row (EPIC-006 confirmation
   Low F007). Re-enter when changing advertisement fallback.
   TASK-026 listing-is-not-a-spawn-gate still holds.

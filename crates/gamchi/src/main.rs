@@ -1,4 +1,4 @@
-//! Command samchi-for-grok is the local Grok worker, MCP host surface, and
+//! Command gamchi is the local Grok worker, MCP host surface, and
 //! app-server listen facade. TASK-015 publishes Unix-domain HTTP/WS upgrade.
 
 mod app_server;
@@ -15,10 +15,10 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const USAGE: &str = "\
 Usage:
-  samchi-for-grok version [--json]
-  samchi-for-grok worker <start|wait|status|result|list|cancel|followup|respond> ...
-  samchi-for-grok mcp [--home <absolute-path>]
-  samchi-for-grok app-server --listen unix://<absolute-path> [--home <absolute-path>]
+  gamchi version [--json]
+  gamchi worker <start|wait|status|result|list|cancel|followup|respond> ...
+  gamchi mcp [--home <absolute-path>]
+  gamchi app-server --listen unix://<absolute-path> [--home <absolute-path>]
 ";
 
 fn main() -> ExitCode {
@@ -49,7 +49,7 @@ fn run(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
             0
         }
         ["version", ..] | ["--version", ..] => {
-            write_all(stderr, "SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG\n");
+            write_all(stderr, "GAMCHI_STARTUP_ERROR INVALID_CONFIG\n");
             write_all(stderr, USAGE);
             1
         }
@@ -62,7 +62,7 @@ fn run(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
             }
             "app-server" => app_server::run(&args[1..], stderr),
             other => {
-                write_all(stderr, "SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG\n");
+                write_all(stderr, "GAMCHI_STARTUP_ERROR INVALID_CONFIG\n");
                 if !other.starts_with('-') {
                     write_all(stderr, USAGE);
                 }
@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn user_agent_is_honest_identity() {
-        assert_eq!(app_server::USER_AGENT, "samchi-for-grok/app-server-v1");
+        assert_eq!(app_server::USER_AGENT, "gamchi/app-server-v1");
     }
 
     #[test]
@@ -146,8 +146,7 @@ mod tests {
                 String::from_utf8_lossy(&stdout)
             );
             assert!(
-                String::from_utf8_lossy(&stderr)
-                    .contains("SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG"),
+                String::from_utf8_lossy(&stderr).contains("GAMCHI_STARTUP_ERROR INVALID_CONFIG"),
                 "{args:?}: stderr {:?}",
                 String::from_utf8_lossy(&stderr)
             );
@@ -166,7 +165,7 @@ mod tests {
             String::from_utf8_lossy(&stdout)
         );
         assert!(
-            String::from_utf8_lossy(&stderr).contains("samchi-for-grok version"),
+            String::from_utf8_lossy(&stderr).contains("gamchi version"),
             "stderr {:?}",
             String::from_utf8_lossy(&stderr)
         );
@@ -179,8 +178,7 @@ mod tests {
         let code = run(&["nope"], &mut stdout, &mut stderr);
         assert_eq!(code, 1);
         assert!(
-            String::from_utf8_lossy(&stderr)
-                .contains("SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG"),
+            String::from_utf8_lossy(&stderr).contains("GAMCHI_STARTUP_ERROR INVALID_CONFIG"),
             "stderr {:?}",
             String::from_utf8_lossy(&stderr)
         );
@@ -194,7 +192,7 @@ mod tests {
         assert_eq!(code, 1);
         let err = String::from_utf8_lossy(&stderr);
         assert!(
-            err.contains("SAMCHI_FOR_GROK_STARTUP_ERROR INVALID_CONFIG"),
+            err.contains("GAMCHI_STARTUP_ERROR INVALID_CONFIG"),
             "stderr {err:?}"
         );
         assert!(

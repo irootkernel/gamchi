@@ -57,7 +57,7 @@ async fn run_client(
 
     Client
         .builder()
-        .name("samchi-for-grok-acp-harness")
+        .name("gamchi-acp-harness")
         .on_receive_notification(
             async move |notification: SessionNotification, _cx| {
                 assert_eq!(notification.session_id.to_string(), STUB_SESSION_ID);

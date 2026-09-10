@@ -17,7 +17,7 @@ static LOCK: Mutex<()> = Mutex::new(());
 static SOCK_SEQ: AtomicU64 = AtomicU64::new(0);
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_samchi-for-grok")
+    env!("CARGO_BIN_EXE_gamchi")
 }
 
 fn fake_agent() -> PathBuf {
@@ -38,7 +38,7 @@ fn spawn_listen(url: &str, home: Option<&Path>) -> Child {
 fn spawn_listen_with(url: &str, home: Option<&Path>, extra: &[(&str, &str)]) -> Child {
     let mut cmd = Command::new(bin());
     cmd.args(["app-server", "--listen", url])
-        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
@@ -164,10 +164,7 @@ fn listen_upgrades_dolgorae_handshake() {
         .unwrap();
     let reply: serde_json::Value = serde_json::from_str(&read_server_text(&mut stream)).unwrap();
     assert!(reply.get("jsonrpc").is_none(), "{reply}");
-    assert_eq!(
-        reply["result"]["userAgent"],
-        "samchi-for-grok/app-server-v1"
-    );
+    assert_eq!(reply["result"]["userAgent"], "gamchi/app-server-v1");
     stop(&mut child, &sock);
 }
 
@@ -191,10 +188,7 @@ fn occupied_path_fails_closed() {
         .expect("second");
     assert!(!second.status.success());
     let err = String::from_utf8_lossy(&second.stderr);
-    assert!(
-        err.contains("SAMCHI_FOR_GROK_STARTUP_ERROR OCCUPIED_PATH"),
-        "{err}"
-    );
+    assert!(err.contains("GAMCHI_STARTUP_ERROR OCCUPIED_PATH"), "{err}");
     assert!(sock.exists(), "occupant must remain");
     stop(&mut first, &sock);
 }
@@ -270,7 +264,7 @@ fn rpc_call(
 fn mcp_spawn(home: &Path, cwd: &Path, prompt: &str) -> serde_json::Value {
     let mut child = Command::new(bin())
         .args(["mcp", "--home", home.to_str().unwrap()])
-        .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -341,7 +335,7 @@ fn socket_thread_turn_shares_mcp_ledger() {
             "capabilities": {"optOutNotificationMethods": []}
         }),
     );
-    assert_eq!(init["result"]["userAgent"], "samchi-for-grok/app-server-v1");
+    assert_eq!(init["result"]["userAgent"], "gamchi/app-server-v1");
     let started = rpc_call(
         &mut stream,
         2,
@@ -397,11 +391,7 @@ fn one_in_progress_turn_per_thread_and_interrupt() {
     let cwd = tempfile::tempdir().expect("cwd");
     let sock = unique_sock();
     let url = format!("unix://{}", sock.display());
-    let mut child = spawn_listen_with(
-        &url,
-        Some(home.path()),
-        &[("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")],
-    );
+    let mut child = spawn_listen_with(&url, Some(home.path()), &[("GAMCHI_FAKE_HANG_SECS", "60")]);
     wait_for_sock(&sock, &mut child);
     let mut stream = connect_upgraded(&sock);
     let _ = rpc_call(
@@ -555,7 +545,7 @@ fn socket_approval_is_server_request_not_grok_respond() {
     let mut child = spawn_listen_with(
         &url,
         Some(home.path()),
-        &[("SAMCHI_FOR_GROK_FAKE_ASK_PERMISSION", "1")],
+        &[("GAMCHI_FAKE_ASK_PERMISSION", "1")],
     );
     wait_for_sock(&sock, &mut child);
     let mut stream = connect_upgraded(&sock);
@@ -628,7 +618,7 @@ fn interrupt_during_approval_emits_turn_completed() {
     let mut child = spawn_listen_with(
         &url,
         Some(home.path()),
-        &[("SAMCHI_FOR_GROK_FAKE_ASK_PERMISSION", "1")],
+        &[("GAMCHI_FAKE_ASK_PERMISSION", "1")],
     );
     wait_for_sock(&sock, &mut child);
     let mut stream = connect_upgraded(&sock);
@@ -732,7 +722,7 @@ fn shaped_client_probe() {
     wait_for_sock(&sock, &mut child);
     let mut stream = connect_upgraded(&sock);
     let init = shaped_handshake(&mut stream);
-    assert_eq!(init["result"]["userAgent"], "samchi-for-grok/app-server-v1");
+    assert_eq!(init["result"]["userAgent"], "gamchi/app-server-v1");
     assert!(init.get("jsonrpc").is_none());
     notify(&mut stream, "initialized", serde_json::json!({}));
     let account = rpc_call(
@@ -753,10 +743,7 @@ fn shaped_client_probe() {
     assert!(models["result"]["data"][0]["supportedReasoningEfforts"].is_array());
     let runtime = rpc_call(&mut stream, 4, "grok/runtime/read", serde_json::json!({}));
     assert_eq!(runtime["result"]["runtime"], "grok");
-    assert_eq!(
-        runtime["result"]["userAgent"],
-        "samchi-for-grok/app-server-v1"
-    );
+    assert_eq!(runtime["result"]["userAgent"], "gamchi/app-server-v1");
     assert_eq!(
         runtime["result"]["home"].as_str().unwrap(),
         home.path().display().to_string()
@@ -783,7 +770,7 @@ fn grok_runtime_read_home_follows_env() {
     let mut child = spawn_listen_with(
         &url,
         None,
-        &[("SAMCHI_FOR_GROK_HOME", home.path().to_str().unwrap())],
+        &[("GAMCHI_HOME", home.path().to_str().unwrap())],
     );
     wait_for_sock(&sock, &mut child);
     let mut stream = connect_upgraded(&sock);
@@ -921,7 +908,7 @@ fn shaped_client_approval() {
     let mut child = spawn_listen_with(
         &url,
         Some(home.path()),
-        &[("SAMCHI_FOR_GROK_FAKE_ASK_PERMISSION", "1")],
+        &[("GAMCHI_FAKE_ASK_PERMISSION", "1")],
     );
     wait_for_sock(&sock, &mut child);
     let mut stream = connect_upgraded(&sock);
@@ -988,11 +975,7 @@ fn shaped_client_interrupt() {
     let cwd = tempfile::tempdir().expect("cwd");
     let sock = unique_sock();
     let url = format!("unix://{}", sock.display());
-    let mut child = spawn_listen_with(
-        &url,
-        Some(home.path()),
-        &[("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")],
-    );
+    let mut child = spawn_listen_with(&url, Some(home.path()), &[("GAMCHI_FAKE_HANG_SECS", "60")]);
     wait_for_sock(&sock, &mut child);
     let mut stream = connect_upgraded(&sock);
     let _ = shaped_handshake(&mut stream);
@@ -1070,10 +1053,7 @@ fn model_list_fixture_and_turn_model_lock() {
     let mut child = spawn_listen_with(
         &url,
         Some(home.path()),
-        &[(
-            "SAMCHI_FOR_GROK_MODEL_LIST_FIXTURE",
-            fixture.to_str().unwrap(),
-        )],
+        &[("GAMCHI_MODEL_LIST_FIXTURE", fixture.to_str().unwrap())],
     );
     wait_for_sock(&sock, &mut child);
     let mut stream = connect_upgraded(&sock);

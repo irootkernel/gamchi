@@ -1,14 +1,14 @@
 ---
-name: use-samchi-for-grok
+name: use-gamchi
 description: >
-  Supervise a write-capable Grok turn through samchi-for-grok MCP.
+  Supervise a write-capable Grok turn through gamchi MCP.
   Call grok_spawn once, then grok_await until a terminal TurnStatus.
   Do not poll status. Host timeout does not cancel the turn.
 ---
 
-# Use samchi-for-grok
+# Use gamchi
 
-samchi-for-grok is a Grok-only local worker. MCP v1 is a write-capable
+gamchi is a Grok-only local worker. MCP v1 is a write-capable
 subagent: default `approvalPolicy=never` and `sandbox=workspace-write`.
 Omit those fields unless the user asked for read-only or gated approvals.
 Do not pass `writableRoots`, `networkAccess`, `excludeSlashTmp`, or
@@ -26,7 +26,7 @@ advertised, follow-up fails closed.
 Optional `model` and `effort` on `grok_spawn` and `grok_followup`. Omit them
 to use home `config.yaml` then `grok-4.6` / `high`. Present blank values are
 `INVALID_CONFIG`. Follow-up cannot change the thread model after `grok` →
-`grok-4.6` normalization. Recommend adding `.samchi-for-grok/` to the
+`grok-4.6` normalization. Recommend adding `.gamchi/` to the
 consumer project's `.gitignore`. Do not edit that file for the user.
 `grok_respond` answers a parked `session/request_permission`. `pending_approval`
 is not a TurnStatus; call `grok_respond` then `grok_await` again.
@@ -60,7 +60,7 @@ is not a TurnStatus; call `grok_respond` then `grok_await` again.
 
 ## Host deadline
 
-`grok_await` has no samchi-for-grok timeout. The MCP host tool deadline must
+`grok_await` has no gamchi timeout. The MCP host tool deadline must
 exceed the longest expected Grok turn plus ledger finalization.
 
 Copy the Codex snippet from [docs/ops/codex-mcp.toml](../../docs/ops/codex-mcp.toml)

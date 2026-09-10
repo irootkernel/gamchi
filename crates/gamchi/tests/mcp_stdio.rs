@@ -8,11 +8,11 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_samchi-for-grok")
+    env!("CARGO_BIN_EXE_gamchi")
 }
 
 fn fake_agent() -> PathBuf {
-    let mut p = PathBuf::from(env!("CARGO_BIN_EXE_samchi-for-grok"));
+    let mut p = PathBuf::from(env!("CARGO_BIN_EXE_gamchi"));
     p.set_file_name("fake-acp-agent");
     p
 }
@@ -30,13 +30,13 @@ impl Rpc {
     }
 
     fn start_hang(home: &str) -> Self {
-        Self::start_with(home, &[("SAMCHI_FOR_GROK_FAKE_HANG_SECS", "60")])
+        Self::start_with(home, &[("GAMCHI_FAKE_HANG_SECS", "60")])
     }
 
     fn start_with(home: &str, extra: &[(&str, &str)]) -> Self {
         let mut cmd = Command::new(bin());
         cmd.args(["mcp", "--home", home])
-            .env("SAMCHI_FOR_GROK_ACP_PROGRAM", fake_agent())
+            .env("GAMCHI_ACP_PROGRAM", fake_agent())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -87,7 +87,7 @@ fn tools_list_includes_cancel_and_spawn_await() {
         "initialize",
         json!({"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}),
     );
-    assert_eq!(init["result"]["serverInfo"]["name"], "samchi-for-grok");
+    assert_eq!(init["result"]["serverInfo"]["name"], "gamchi");
     let listed = rpc.call("tools/list", json!({}));
     let names: Vec<_> = listed["result"]["tools"]
         .as_array()
@@ -464,7 +464,7 @@ fn grok_followup_fails_closed_without_load_session() {
     let cwd = tempfile::tempdir().expect("cwd");
     let mut rpc = Rpc::start_with(
         home.path().to_str().unwrap(),
-        &[("SAMCHI_FOR_GROK_FAKE_NO_LOAD", "1")],
+        &[("GAMCHI_FAKE_NO_LOAD", "1")],
     );
     let _ = rpc.call(
         "initialize",

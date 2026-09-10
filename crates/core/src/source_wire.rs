@@ -1,4 +1,4 @@
-//! Subset-derived wire names (methods, policies, statuses) and samchi-for-grok emit
+//! Subset-derived wire names (methods, policies, statuses) and gamchi emit
 //! policy for ThreadItems. The subset is a Dolgorae client requirement, not
 //! this module's item allowlist. There is no ad hoc job JSON.
 
@@ -193,7 +193,7 @@ impl<'de> Deserialize<'de> for TurnStatus {
 /// Dead-generation failure reason. Not a TurnStatus.
 pub const FAILURE_WORKER_GONE: &str = "worker_gone";
 
-/// Public ThreadItem type samchi-for-grok may emit (ACP-projectable).
+/// Public ThreadItem type gamchi may emit (ACP-projectable).
 pub const ITEM_USER_MESSAGE: &str = "userMessage";
 pub const ITEM_AGENT_MESSAGE: &str = "agentMessage";
 pub const ITEM_PLAN: &str = "plan";
@@ -201,7 +201,7 @@ pub const ITEM_COMMAND_EXECUTION: &str = "commandExecution";
 pub const ITEM_FILE_CHANGE: &str = "fileChange";
 pub const ITEM_WEB_SEARCH: &str = "webSearch";
 
-/// samchi-for-grok emit policy, not a subset-derived allowlist.
+/// gamchi emit policy, not a subset-derived allowlist.
 pub const PUBLIC_ITEM_TYPES: &[&str] = &[
     ITEM_USER_MESSAGE,
     ITEM_AGENT_MESSAGE,
@@ -211,9 +211,9 @@ pub const PUBLIC_ITEM_TYPES: &[&str] = &[
     ITEM_WEB_SEARCH,
 ];
 
-/// Subset schema branches samchi-for-grok will not emit.
+/// Subset schema branches gamchi will not emit.
 /// Presence in the subset means Dolgorae requires Codex to have the schema,
-/// not that samchi-for-grok should produce them.
+/// not that gamchi should produce them.
 pub const EXCLUDED_FATAL_ITEM_TYPES: &[&str] = &["collabAgentToolCall", "subAgentActivity"];
 
 /// Subset command/file approval response.
