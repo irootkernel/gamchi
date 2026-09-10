@@ -1,0 +1,82 @@
+{
+  "task": "TASK-030",
+  "kind": "live grok agent stdio instruction-channel capture",
+  "grok_version": "grok 1.0.25 (f7e67d6988e2) [stable]",
+  "agent_stdio_argv_shape": [
+    "grok",
+    "--cwd",
+    "<abs>",
+    "--sandbox",
+    "workspace",
+    "agent",
+    "--no-leader",
+    "--always-approve",
+    "-m",
+    "grok-4.6",
+    "--reasoning-effort",
+    "low",
+    "stdio"
+  ],
+  "owner": "The capture parent spawned grok agent stdio with --no-leader.",
+  "authenticated": true,
+  "verdict": "no-go-for-apply-go-for-refuse",
+  "spawn_owned_channel": null,
+  "probes": [
+    {
+      "id": "control-no-files-no-flags",
+      "channel": "none",
+      "unique_token": false,
+      "honored": false,
+      "note": "Reply was NONE when asked for a secret token with no instruction files and no extra flags."
+    },
+    {
+      "id": "rules-inline-text",
+      "channel": "grok --rules <inline-text>",
+      "unique_token": true,
+      "honored": false,
+      "note": "A unique token in inline --rules text produced NONE. The flag did not install the text on grok agent stdio."
+    },
+    {
+      "id": "rules-absolute-outside-cwd",
+      "channel": "grok --rules <absolute-path-outside-cwd>",
+      "unique_token": true,
+      "honored": false,
+      "note": "A unique token in a rules file outside cwd, passed as --rules, produced NONE."
+    },
+    {
+      "id": "cwd-extra.rules-with-flag",
+      "channel": "cwd extra.rules plus grok --rules <that-file>",
+      "unique_token": true,
+      "honored": true,
+      "note": "Unique token in cwd extra.rules was present in the agent reply."
+    },
+    {
+      "id": "cwd-extra.rules-no-flag",
+      "channel": "cwd extra.rules without --rules",
+      "unique_token": true,
+      "honored": true,
+      "note": "Unique token in cwd extra.rules was present in the agent reply with no --rules flag. Honor is project-file discovery, not the CLI flag."
+    },
+    {
+      "id": "cwd-AGENTS.md-no-flag",
+      "channel": "cwd AGENTS.md without --rules",
+      "unique_token": true,
+      "honored": true,
+      "note": "Unique token in cwd AGENTS.md was present in the agent reply."
+    },
+    {
+      "id": "cwd-instruction.rules-no-flag",
+      "channel": "cwd instruction.rules without --rules",
+      "unique_token": true,
+      "honored": true,
+      "note": "Unique token in cwd instruction.rules was present in the agent reply."
+    },
+    {
+      "id": "system-prompt-override-unique",
+      "channel": "grok --system-prompt-override <inline-text> (compat alias --system-prompt)",
+      "unique_token": true,
+      "honored": false,
+      "note": "A unique token in --system-prompt-override produced NONE on grok agent stdio. grok --help documents --system-prompt as the compat alias of this flag; it is the same probe."
+    }
+  ]
+}

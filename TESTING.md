@@ -92,5 +92,7 @@ The shaped client is offline against the fake ACP agent. Live Grok is not
 required and is not a Dolgorae Profile integration.
 TASK-029 is documentation: the developer-instruction table lives in
 `docs/specs/grok-launch.md`. `make test` does not spawn live Grok.
-TASK-031 owns offline fake-agent and app-server coverage of that table.
-Go-for-apply live proof is an ignored test and is not this Task.
+TASK-030's instruction-channel capture is parsed offline from
+`crates/adapter-grok/captures/task-030` (ADR-0003 refuse). Live Grok is
+not spawned. TASK-031 owns offline fake-agent and app-server coverage
+of that table as refuse-only.

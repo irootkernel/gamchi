@@ -206,12 +206,15 @@ left waiting.
 Silent store-and-ignore is invalid. Traffic that only contains the
 string is not proof Grok honors it.
 
-TASK-030 captures whether live `grok agent stdio` honors `--rules`
-(append) or `--system-prompt-override` / `--system-prompt` (full
-replacement). Adopt a full replacement only if the ADR verifies its
-effect on default agent behavior and that required working instructions
-are preserved. TASK-031 implements apply or refuse-only. Refuse-only
-is safe refusal, not role-instruction attach.
+[ADR-0003](../architecture-decision-records/0003-developer-instructions-refuse.md)
+recorded **no-go for apply / go for refuse** from a live grok 1.0.25
+`agent stdio` capture. `--rules` inline text and `--rules` paths
+outside cwd were not honored. `--system-prompt-override` with a unique
+token was not honored. Cwd `AGENTS.md` / `extra.rules` /
+`instruction.rules` were honored as Grok project discovery; do not
+write those files to deliver parent `developerInstructions`. TASK-031
+implements refuse-only. Refuse-only is safe refusal, not
+role-instruction attach.
 
 This epic does not make a Dolgorae Profile able to launch gamchi.
 Remaining attach (later work): Codex 0.153.4 Profile validation,

@@ -85,12 +85,9 @@ Outcomes live in [grok-launch.md](../specs/grok-launch.md). Cover:
    freeze vs restore, not Dolgorae generation, not a sandbox-class
    boundary. Omitted/empty first start stays the current no-instruction
    path.
-2. TASK-030 — live `grok agent stdio` capture or recorded absence, then
-   an ADR. Evidence: grok version and argv, exact channel, separation
-   from user prompt, observable behavior with vs without the text, and
-   first turn → child exit → new child `session/load` → second turn.
-   Distinguish unverified (Blocked); this-version no-go for apply / go
-   for refuse; go for apply.
+2. TASK-030 — live `grok agent stdio` capture, then ADR-0003:
+   no-go for apply / go for refuse. Cwd instruction files are honored
+   as Grok project discovery, not a parent-owned spawn channel.
 3. TASK-031 — implement the ADR. Offline tests cover the table,
    same-value resume, and the restore path. `make test` does not call
    live Grok. Go-for-apply requires running and passing the ignored live
