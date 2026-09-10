@@ -46,7 +46,7 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: none.
+Next eligible Task: `TASK-028`.
 
 ## Phase index
 
@@ -56,6 +56,7 @@ Next eligible Task: none.
 | Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `Completed` | EPIC-003..EPIC-004 |
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Completed` | EPIC-005 |
 | Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `Completed` | EPIC-006 |
+| Phase 5 — Product identity | Grok worker command is gamchi | `Planned` | EPIC-007 |
 
 ## EPIC-001: Foundation
 
@@ -198,3 +199,48 @@ effort only. Do not rewrite completed Tasks.
 | [TASK-025](#epic-006-selectable-grok-model) | MCP/CLI spawn and follow-up fields plus skill | `Completed` | TASK-024 | grok_spawn, grok_followup, worker start, and worker followup accept model/effort. Follow-up model mismatch refuses. Skill recommends adding `.samchi-for-grok/` to `.gitignore` and does not edit that file |
 | [TASK-026](#epic-006-selectable-grok-model) | App-server model/list and reject mid-thread model change | `Completed` | TASK-025 | model/list may list live Grok ids for advertisement, not as a spawn gate. Omitted thread/start uses the same cascade as MCP. turn/start model change fails closed. Effort may change |
 | [TASK-027](#epic-006-selectable-grok-model) | Live proof of requested model/effort | `Completed` | TASK-026 | Ignored live test: requested pair is on the child argv and capture model_id. Follow-up effort change works. Follow-up model change refuses. Follow-up with empty stored effort uses high or home default_effort. Compilation is not live proof |
+
+## EPIC-007: Product identity Gamchi
+
+Status: `Planned`
+
+Depends on: EPIC-006
+
+Canonical Outcomes: live product identity is Gamchi / `gamchi`
+([product.md](../specs/product.md), [architecture/core.md](../architecture/core.md));
+hard home cutover
+([grok-launch.md](../specs/grok-launch.md),
+[mcp-async-host-contract.md](../specs/mcp-async-host-contract.md));
+honest `userAgent=gamchi/app-server-v1`
+([protocol/README.md](../protocol/README.md)).
+
+The Grok worker is Gamchi. Every current runtime, diagnostic, and live-doc
+identity uses `gamchi`: binary and facade crate path/package, Makefile,
+CLI usage and `version --json`, ACP client name, fake-agent and stdio
+harness names, `userAgent`, `GAMCHI_*` env (including `STARTUP_ERROR` and
+test/launch fixtures), default home `~/.gamchi`, skill, MCP server key,
+README title, live specs/architecture/protocol/ops/TESTING.md/AGENTS.md,
+and accepted ADRs (in place; the decisions stay Rust / Grok-only).
+`samchi-core` and `samchi-adapter-grok` stay. MCP tools stay `grok_*`.
+The `fake-acp-agent` binary name stays. Zamchi and Camchi are
+sibling-product names, not this repo.
+
+Hard cutover: no `SAMCHI_FOR_GROK_*` env fallback; no auto-discover, copy,
+or migrate of `~/.samchi-for-grok`. Default is `GAMCHI_HOME`, then
+`~/.gamchi`. Explicit `--home` still accepts any absolute path, including
+the old directory as an ordinary path.
+
+Old-name allowlist (do not rewrite): completed Task rows in this roadmap;
+`crates/adapter-grok/captures/task-004/**` bytes and literals that must
+match them, including `samchi-for-grok-task-004-live-capture`; GitHub
+remote and clone path. Live ignored-test markers that are not capture
+bytes (including TASK-007 `live_edit`) change with the product. Do not
+rewrite completed Tasks.
+
+Verification is `make test`, `make build`, `./bin/gamchi version --json`,
+home/env precedence, host packaging skill and config paths, and an
+allowlisted leftover-name search. No live Grok rerun. No old-name aliases.
+
+| Task | Title | Status | Depends on | Done when |
+| --- | --- | --- | --- | --- |
+| [TASK-028](#epic-007-product-identity-gamchi) | Rename product identity to Gamchi | `Planned` | TASK-027 | Live runtime/diagnostic/doc identity is `gamchi` (binary, facade crate, Makefile, CLI usage/version, ACP client name, fake-agent/harness names, userAgent, GAMCHI_* including STARTUP_ERROR, home, skill, MCP server key, live docs/ADRs/TESTING.md). `samchi-core` and `samchi-adapter-grok` stay. MCP tools stay `grok_*`. Hard cutover: no SAMCHI_FOR_GROK_* fallback, no ~/.samchi-for-grok auto-discover/copy/migrate; `--home` still accepts any absolute path. Allowlist: completed Task rows; task-004 capture bytes and matching literals; GitHub remote/clone path. `make test`, `make build`, `./bin/gamchi version --json`, home precedence, host packaging, allowlisted leftover search. No live Grok rerun. No old-name aliases |
