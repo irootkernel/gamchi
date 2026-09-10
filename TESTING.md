@@ -94,5 +94,5 @@ TASK-029 is documentation: the developer-instruction table lives in
 `docs/specs/grok-launch.md`. `make test` does not spawn live Grok.
 TASK-030's instruction-channel capture is parsed offline from
 `crates/adapter-grok/captures/task-030` (ADR-0003 refuse). Live Grok is
-not spawned. TASK-031 owns offline fake-agent and app-server coverage
-of that table as refuse-only.
+not spawned. TASK-031 app-server tests cover the TASK-029 table as
+refuse-only. `make test` does not call live Grok.

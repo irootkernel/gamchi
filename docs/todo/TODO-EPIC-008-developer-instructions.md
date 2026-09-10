@@ -88,14 +88,8 @@ Outcomes live in [grok-launch.md](../specs/grok-launch.md). Cover:
 2. TASK-030 — live `grok agent stdio` capture, then ADR-0003:
    no-go for apply / go for refuse. Cwd instruction files are honored
    as Grok project discovery, not a parent-owned spawn channel.
-3. TASK-031 — implement the ADR. Offline tests cover the table,
-   same-value resume, and the restore path. `make test` does not call
-   live Grok. Go-for-apply requires running and passing the ignored live
-   test against the TASK-031 implementation before completion. That live
-   run must exercise instruction delivery and restoration through
-   Gamchi’s app-server path. If authentication or the execution
-   environment prevents the live run, do not complete; leave remaining
-   verification explicit (`Blocked`). Refuse-only stays offline:
+3. TASK-031 — ADR-0003 refuse-only. Offline app-server tests cover the
+   TASK-029 table. `make test` does not call live Grok. Closeout is
    safe-refusal, not attach-ready.
 
 ## Remaining Dolgorae attach (not this epic)
@@ -114,7 +108,5 @@ consumer scenario. Do not fold them into TASK-031.
 ## Verification
 
 `make test` after TASK-031 (offline). TASK-029 is documentation.
-TASK-030 is a repo capture or a no-go ADR. Go-for-apply TASK-031 is not
-complete until the ignored live app-server test has been run and
-passed; an unrun live test is not remaining verification recorded.
-Do not start TASK-030 or TASK-031 until the predecessor is `Completed`.
+TASK-030 is ADR-0003 refuse. TASK-031 is refuse-only; no ignored live
+apply test.

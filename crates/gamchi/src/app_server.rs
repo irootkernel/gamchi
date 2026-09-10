@@ -668,11 +668,7 @@ fn thread_start(params: &Value, home: &Path) -> Result<Value, String> {
         Some(v) => parse_approval_policy(v).map_err(|e| e.to_string())?,
         None => APP_SERVER_DEFAULT_APPROVAL_POLICY,
     };
-    let developer_instructions = params
-        .get("developerInstructions")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
+    let developer_instructions = parse_start_developer_instructions(params)?;
     let ledger = open_ledger(Some(home))?;
     let stored = ledger
         .create_thread(&NewThread {
@@ -695,12 +691,41 @@ fn thread_resume(params: &Value, home: &Path) -> Result<Value, String> {
         .ok_or_else(|| "threadId required".to_string())?;
     let ledger = open_ledger(Some(home))?;
     let stored = ledger.read_thread(thread_id).map_err(|e| e.to_string())?;
+    check_resume_developer_instructions(params, &stored.developer_instructions)?;
     Ok(json!({
         "thread": {
             "id": stored.id,
             "turns": turns_for_thread(&ledger, &stored.id)?,
         }
     }))
+}
+
+fn parse_start_developer_instructions(params: &Value) -> Result<String, String> {
+    match params.get("developerInstructions") {
+        None | Some(Value::Null) => Ok(String::new()),
+        Some(Value::String(s)) if s.is_empty() => Ok(String::new()),
+        Some(Value::String(s)) if s.chars().all(char::is_whitespace) => {
+            Err("developerInstructions whitespace-only".to_string())
+        }
+        Some(Value::String(_)) => Err("developerInstructions not supported".to_string()),
+        Some(_) => Err("developerInstructions must be a string or null".to_string()),
+    }
+}
+
+fn check_resume_developer_instructions(params: &Value, stored: &str) -> Result<(), String> {
+    match params.get("developerInstructions") {
+        None | Some(Value::Null) => Ok(()),
+        Some(Value::String(s)) if s.is_empty() && stored.is_empty() => Ok(()),
+        Some(Value::String(s)) if s.is_empty() => {
+            Err("developerInstructions change refused".to_string())
+        }
+        Some(Value::String(s)) if s.chars().all(char::is_whitespace) => {
+            Err("developerInstructions whitespace-only".to_string())
+        }
+        Some(Value::String(s)) if s == stored && !stored.is_empty() => Ok(()),
+        Some(Value::String(_)) => Err("developerInstructions change refused".to_string()),
+        Some(_) => Err("developerInstructions must be a string or null".to_string()),
+    }
 }
 
 enum ThreadReadError {
@@ -732,6 +757,9 @@ fn thread_read(params: &Value, home: &Path) -> Result<Value, ThreadReadError> {
 
 fn turn_start(params: &Value, home: &Path) -> Result<Value, String> {
     reject_unenforceable_extras(params)?;
+    if params.get("developerInstructions").is_some() {
+        return Err("developerInstructions is not allowed on turn/start".to_string());
+    }
     if let Some(policy) = params.get("sandboxPolicy") {
         reject_unenforceable_extras(policy)?;
     }
@@ -743,6 +771,9 @@ fn turn_start(params: &Value, home: &Path) -> Result<Value, String> {
     let prompt = prompt_from_input(params.get("input").unwrap_or(&Value::Null))?;
     let ledger = Arc::new(open_ledger(Some(home))?);
     let stored = ledger.read_thread(&thread_id).map_err(|e| e.to_string())?;
+    if !stored.developer_instructions.is_empty() {
+        return Err("developerInstructions not supported".to_string());
+    }
     let sandbox = match params.get("sandboxPolicy") {
         Some(policy) => {
             let ty = policy
@@ -1550,6 +1581,181 @@ mod tests {
                 .unwrap()
                 .contains("does not belong"),
             "{mismatch}"
+        );
+    }
+
+    #[test]
+    fn developer_instructions_refuse_the_task029_table() {
+        let home = tempfile::tempdir().expect("home");
+        let cwd = tempfile::tempdir().expect("cwd");
+        let cwd_s = cwd.path().to_str().unwrap();
+        for (id, params) in [
+            (30, json!({"cwd": cwd_s})),
+            (31, json!({"cwd": cwd_s, "developerInstructions": null})),
+            (32, json!({"cwd": cwd_s, "developerInstructions": ""})),
+        ] {
+            let reply = handle_rpc(
+                &json!({"id": id, "method": "thread/start", "params": params}),
+                home.path(),
+            )
+            .unwrap();
+            let tid = reply["result"]["thread"]["id"].as_str().unwrap();
+            let stored = Ledger::open(home.path()).unwrap().read_thread(tid).unwrap();
+            assert!(
+                stored.developer_instructions.is_empty(),
+                "id={id} stored {:?}",
+                stored.developer_instructions
+            );
+        }
+        for (id, params, needle) in [
+            (
+                33,
+                json!({"cwd": cwd_s, "developerInstructions": "   "}),
+                "whitespace-only",
+            ),
+            (
+                34,
+                json!({"cwd": cwd_s, "developerInstructions": 1}),
+                "must be a string or null",
+            ),
+            (
+                35,
+                json!({"cwd": cwd_s, "developerInstructions": "be a reviewer"}),
+                "not supported",
+            ),
+        ] {
+            let reply = handle_rpc(
+                &json!({"id": id, "method": "thread/start", "params": params}),
+                home.path(),
+            )
+            .unwrap();
+            assert_eq!(reply["error"]["code"], METHOD_NOT_FOUND, "{reply}");
+            assert!(
+                reply["error"]["message"].as_str().unwrap().contains(needle),
+                "{reply}"
+            );
+        }
+
+        let empty = handle_rpc(
+            &json!({"id": 36, "method": "thread/start", "params": {"cwd": cwd_s}}),
+            home.path(),
+        )
+        .unwrap();
+        let empty_id = empty["result"]["thread"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let same_empty = handle_rpc(
+            &json!({
+                "id": 37,
+                "method": "thread/resume",
+                "params": {"threadId": empty_id, "developerInstructions": ""}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(same_empty.get("result").is_some(), "{same_empty}");
+        let omitted = handle_rpc(
+            &json!({"id": 38, "method": "thread/resume", "params": {"threadId": empty_id}}),
+            home.path(),
+        )
+        .unwrap();
+        assert!(omitted.get("result").is_some(), "{omitted}");
+        let change = handle_rpc(
+            &json!({
+                "id": 39,
+                "method": "thread/resume",
+                "params": {"threadId": empty_id, "developerInstructions": "other"}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(
+            change["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("change refused"),
+            "{change}"
+        );
+        let turn_field = handle_rpc(
+            &json!({
+                "id": 40,
+                "method": "turn/start",
+                "params": {
+                    "threadId": empty_id,
+                    "input": [{"type": "text", "text": "x"}],
+                    "developerInstructions": "x"
+                }
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(
+            turn_field["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("not allowed on turn/start"),
+            "{turn_field}"
+        );
+
+        let ledger = Ledger::open(home.path()).unwrap();
+        let legacy = ledger
+            .create_thread(&samchi_core::ledger::NewThread {
+                cwd: cwd_s.to_string(),
+                model: "grok-4.6".to_string(),
+                sandbox: samchi_core::source_wire::ThreadSandbox::ReadOnly,
+                approval_policy: samchi_core::source_wire::ApprovalPolicy::Untrusted,
+                developer_instructions: "legacy role".to_string(),
+                acp_session_id: String::new(),
+            })
+            .unwrap();
+        let same = handle_rpc(
+            &json!({
+                "id": 41,
+                "method": "thread/resume",
+                "params": {
+                    "threadId": legacy.id,
+                    "developerInstructions": "legacy role"
+                }
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(same.get("result").is_some(), "{same}");
+        let empty_change = handle_rpc(
+            &json!({
+                "id": 42,
+                "method": "thread/resume",
+                "params": {"threadId": legacy.id, "developerInstructions": ""}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(
+            empty_change["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("change refused"),
+            "{empty_change}"
+        );
+        let turn_legacy = handle_rpc(
+            &json!({
+                "id": 43,
+                "method": "turn/start",
+                "params": {
+                    "threadId": legacy.id,
+                    "input": [{"type": "text", "text": "x"}]
+                }
+            }),
+            home.path(),
+        )
+        .unwrap();
+        assert!(
+            turn_legacy["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("not supported"),
+            "{turn_legacy}"
         );
     }
 }
