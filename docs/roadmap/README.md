@@ -56,7 +56,7 @@ Next eligible Task: none.
 | Phase 2 — Claude/Codex v1 | Async worker + MCP, approvals, resume, crash | `Completed` | EPIC-003..EPIC-004 |
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Completed` | EPIC-005 |
 | Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `Completed` | EPIC-006 |
-| Phase 5 — Product identity | Grok worker command is gamchi | `In Progress` | EPIC-007 |
+| Phase 5 — Product identity | Grok worker command is gamchi | `Completed` | EPIC-007 |
 
 ## EPIC-001: Foundation
 
@@ -202,7 +202,7 @@ effort only. Do not rewrite completed Tasks.
 
 ## EPIC-007: Product identity Gamchi
 
-Status: `In Progress`
+Status: `Completed`
 
 Depends on: EPIC-006
 

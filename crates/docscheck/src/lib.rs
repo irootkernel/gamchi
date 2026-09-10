@@ -393,15 +393,12 @@ mod tests {
         assert_eq!(epic_status(&body, "EPIC-004").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-005").as_deref(), Some("Completed"));
         assert_eq!(epic_status(&body, "EPIC-006").as_deref(), Some("Completed"));
-        assert_eq!(
-            epic_status(&body, "EPIC-007").as_deref(),
-            Some("In Progress")
-        );
+        assert_eq!(epic_status(&body, "EPIC-007").as_deref(), Some("Completed"));
         assert_eq!(phase_status(&body, 1).as_deref(), Some("Completed"));
         assert_eq!(phase_status(&body, 2).as_deref(), Some("Completed"));
         assert_eq!(phase_status(&body, 3).as_deref(), Some("Completed"));
         assert_eq!(phase_status(&body, 4).as_deref(), Some("Completed"));
-        assert_eq!(phase_status(&body, 5).as_deref(), Some("In Progress"));
+        assert_eq!(phase_status(&body, 5).as_deref(), Some("Completed"));
     }
 
     #[test]
