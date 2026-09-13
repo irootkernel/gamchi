@@ -9,9 +9,7 @@ This index does not record lifecycle status.
 
 ## Adopted execution dossiers
 
-- [TODO-EPIC-008-instruction-apply.md](TODO-EPIC-008-instruction-apply.md)
-  — remaining EPIC-008 apply work (TASK-033..TASK-035). Not lifecycle
-  status.
+None.
 
 ## Future candidates
 

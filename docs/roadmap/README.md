@@ -57,7 +57,7 @@ Next eligible Task: none.
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Completed` | EPIC-005 |
 | Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `Completed` | EPIC-006 |
 | Phase 5 — Product identity | Grok worker command is gamchi | `Completed` | EPIC-007 |
-| Phase 6 — Codex-shaped developer instructions | Socket `developerInstructions` either reach Grok for that thread generation or fail closed | `In Progress` | EPIC-008 |
+| Phase 6 — Codex-shaped developer instructions | Socket `developerInstructions` either reach Grok for that thread generation or fail closed | `Completed` | EPIC-008 |
 
 ## EPIC-001: Foundation
 
@@ -249,7 +249,7 @@ allowlisted leftover-name search. No live Grok rerun. No old-name aliases.
 
 ## EPIC-008: Generation-immutable developer instructions
 
-Status: `In Progress`
+Status: `Completed`
 
 Depends on: EPIC-007
 
@@ -261,9 +261,6 @@ live app-server honor and process-replace restore
 ([TESTING.md](../../TESTING.md)).
 TASK-029..031 remain historical refuse-only. This is role-instruction
 attach, not Dolgorae Profile attach.
-
-Detailed SOT:
-[TODO-EPIC-008-instruction-apply.md](../todo/TODO-EPIC-008-instruction-apply.md).
 
 A Dolgorae-shaped app-server parent assigns role/purpose with subset
 `developerInstructions` on `thread/start`. Gamchi either installs that
