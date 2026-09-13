@@ -101,4 +101,6 @@ report durable publication when it failed.
 
 TASK-034 implements this channel offline. TASK-035 live-proves it
 through Gamchi app-server. Do not update EPIC-008 Canonical Outcomes
-until TASK-035 passes.
+until TASK-035 passes. The Decision section's "current code still
+refuses" sentence is the TASK-033 snapshot; it is not live runtime
+status after TASK-034.

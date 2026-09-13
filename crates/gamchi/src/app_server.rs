@@ -707,7 +707,7 @@ fn parse_start_developer_instructions(params: &Value) -> Result<String, String> 
         Some(Value::String(s)) if s.chars().all(char::is_whitespace) => {
             Err("developerInstructions whitespace-only".to_string())
         }
-        Some(Value::String(_)) => Err("developerInstructions not supported".to_string()),
+        Some(Value::String(s)) => Ok(s.clone()),
         Some(_) => Err("developerInstructions must be a string or null".to_string()),
     }
 }
@@ -771,9 +771,6 @@ fn turn_start(params: &Value, home: &Path) -> Result<Value, String> {
     let prompt = prompt_from_input(params.get("input").unwrap_or(&Value::Null))?;
     let ledger = Arc::new(open_ledger(Some(home))?);
     let stored = ledger.read_thread(&thread_id).map_err(|e| e.to_string())?;
-    if !stored.developer_instructions.is_empty() {
-        return Err("developerInstructions not supported".to_string());
-    }
     let sandbox = match params.get("sandboxPolicy") {
         Some(policy) => {
             let ty = policy
@@ -1585,7 +1582,7 @@ mod tests {
     }
 
     #[test]
-    fn developer_instructions_refuse_the_task029_table() {
+    fn developer_instructions_apply_the_task029_table() {
         let home = tempfile::tempdir().expect("home");
         let cwd = tempfile::tempdir().expect("cwd");
         let cwd_s = cwd.path().to_str().unwrap();
@@ -1618,11 +1615,6 @@ mod tests {
                 json!({"cwd": cwd_s, "developerInstructions": 1}),
                 "must be a string or null",
             ),
-            (
-                35,
-                json!({"cwd": cwd_s, "developerInstructions": "be a reviewer"}),
-                "not supported",
-            ),
         ] {
             let reply = handle_rpc(
                 &json!({"id": id, "method": "thread/start", "params": params}),
@@ -1635,6 +1627,39 @@ mod tests {
                 "{reply}"
             );
         }
+        let applied = handle_rpc(
+            &json!({
+                "id": 35,
+                "method": "thread/start",
+                "params": {"cwd": cwd_s, "developerInstructions": "be a reviewer"}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        let applied_id = applied["result"]["thread"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let stored = Ledger::open(home.path())
+            .unwrap()
+            .read_thread(&applied_id)
+            .unwrap();
+        assert_eq!(stored.developer_instructions, "be a reviewer");
+        let surrounding = handle_rpc(
+            &json!({
+                "id": 44,
+                "method": "thread/start",
+                "params": {"cwd": cwd_s, "developerInstructions": "  keep spaces  "}
+            }),
+            home.path(),
+        )
+        .unwrap();
+        let surrounding_id = surrounding["result"]["thread"]["id"].as_str().unwrap();
+        let stored = Ledger::open(home.path())
+            .unwrap()
+            .read_thread(surrounding_id)
+            .unwrap();
+        assert_eq!(stored.developer_instructions, "  keep spaces  ");
 
         let empty = handle_rpc(
             &json!({"id": 36, "method": "thread/start", "params": {"cwd": cwd_s}}),
@@ -1738,24 +1763,18 @@ mod tests {
                 .contains("change refused"),
             "{empty_change}"
         );
-        let turn_legacy = handle_rpc(
+        let same_nonempty = handle_rpc(
             &json!({
                 "id": 43,
-                "method": "turn/start",
+                "method": "thread/resume",
                 "params": {
-                    "threadId": legacy.id,
-                    "input": [{"type": "text", "text": "x"}]
+                    "threadId": applied_id,
+                    "developerInstructions": "be a reviewer"
                 }
             }),
             home.path(),
         )
         .unwrap();
-        assert!(
-            turn_legacy["error"]["message"]
-                .as_str()
-                .unwrap()
-                .contains("not supported"),
-            "{turn_legacy}"
-        );
+        assert!(same_nonempty.get("result").is_some(), "{same_nonempty}");
     }
 }

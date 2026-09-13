@@ -6,7 +6,7 @@ use crate::map::Mapper;
 use crate::teardown::teardown_process_group;
 use agent_client_protocol::schema::v1::{
     ClientCapabilities, ContentBlock, FileSystemCapabilities, InitializeRequest,
-    LoadSessionRequest, NewSessionRequest, PermissionOptionKind, PromptRequest,
+    LoadSessionRequest, Meta, NewSessionRequest, PermissionOptionKind, PromptRequest,
     ReadTextFileRequest, ReadTextFileResponse, RequestPermissionOutcome, RequestPermissionRequest,
     RequestPermissionResponse, SelectedPermissionOutcome, SessionId, SessionNotification,
     StopReason, TextContent, WriteTextFileRequest, WriteTextFileResponse,
@@ -108,6 +108,8 @@ struct Shared {
     turn_id: String,
     thread_id: String,
     load_session_id: Option<String>,
+    /// Frozen role text for first-turn `session/new` `_meta.rules`. Empty omits `_meta`.
+    developer_instructions: String,
     fatal: Option<String>,
     approval: ApprovalPolicy,
     /// `session/load` replay is history, not new-turn items or approvals.
@@ -243,6 +245,7 @@ async fn run_turn_async(
         turn_id: turn_id.clone(),
         thread_id: thread_id.clone(),
         load_session_id: load_session_id.clone(),
+        developer_instructions: thread.developer_instructions.clone(),
         fatal: None,
         approval: req.approval,
         history: false,
@@ -423,13 +426,14 @@ async fn drive_prompt(
     prompt: &str,
     shared: &Arc<Mutex<Shared>>,
 ) -> agent_client_protocol::Result<StopReason> {
-    let (ledger, turn_id, thread_id, load_session_id) = {
+    let (ledger, turn_id, thread_id, load_session_id, developer_instructions) = {
         let inner = shared.lock().expect("mapper");
         (
             inner.ledger.clone(),
             inner.turn_id.clone(),
             inner.thread_id.clone(),
             inner.load_session_id.clone(),
+            inner.developer_instructions.clone(),
         )
     };
     let caps = ClientCapabilities::new().fs(FileSystemCapabilities::new()
@@ -473,11 +477,38 @@ async fn drive_prompt(
         }
         SessionId::new(sid)
     } else {
-        let session = connection
-            .send_request(NewSessionRequest::new(cwd.to_path_buf()))
-            .block_task()
-            .await?;
-        let _ = ledger.set_acp_session_id(&thread_id, &session.session_id.to_string());
+        let mut new_req = NewSessionRequest::new(cwd.to_path_buf());
+        if !developer_instructions.is_empty() {
+            let mut meta = Meta::new();
+            meta.insert(
+                "rules".into(),
+                serde_json::Value::String(developer_instructions),
+            );
+            new_req = new_req.meta(meta);
+        }
+        let session = connection.send_request(new_req).block_task().await?;
+        if cwd.join(".gamchi-fail-set-acp-session-id").exists() {
+            let _ = ledger.publish_terminal(
+                &turn_id,
+                TurnStatus::Failed,
+                "",
+                "ACP session id persistence failed",
+            );
+            return Err(agent_client_protocol::Error::into_internal_error(
+                io::Error::other("ACP session id persistence failed"),
+            ));
+        }
+        ledger
+            .set_acp_session_id(&thread_id, &session.session_id.to_string())
+            .map_err(|err| {
+                let _ = ledger.publish_terminal(
+                    &turn_id,
+                    TurnStatus::Failed,
+                    "",
+                    "ACP session id persistence failed",
+                );
+                agent_client_protocol::Error::into_internal_error(io::Error::other(err.to_string()))
+            })?;
         session.session_id
     };
     let prompt_result = connection

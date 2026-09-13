@@ -283,3 +283,163 @@ fn spawn_failure_after_admit_publishes_failed() {
     assert_eq!(turns[0].status, TurnStatus::Failed);
     assert_eq!(turns[0].thread_id, thread.id);
 }
+
+fn fake_command() -> AgentCommand {
+    AgentCommand::Override {
+        program: env!("CARGO_BIN_EXE_fake-acp-agent").into(),
+        args: Vec::new(),
+    }
+}
+
+fn thread_with_instructions(ledger: &Ledger, cwd: &std::path::Path, text: &str) -> String {
+    ledger
+        .create_thread(&NewThread {
+            cwd: cwd.display().to_string(),
+            model: "test".to_string(),
+            sandbox: ThreadSandbox::WorkspaceWrite,
+            approval_policy: ApprovalPolicy::Never,
+            developer_instructions: text.to_string(),
+            acp_session_id: String::new(),
+        })
+        .unwrap()
+        .id
+}
+
+fn reuse_turn(
+    ledger: Arc<Ledger>,
+    cwd: &std::path::Path,
+    thread_id: &str,
+) -> samchi_adapter_grok::TurnOutcome {
+    run_turn(
+        ledger,
+        &TurnRequest {
+            cwd: cwd.to_path_buf(),
+            prompt: "ping".to_string(),
+            approval: ApprovalPolicy::Never,
+            sandbox: ThreadSandbox::WorkspaceWrite,
+            extra: samchi_adapter_grok::ExtraSpawnFields::default(),
+            model: "test".to_string(),
+            effort: String::new(),
+            command: fake_command(),
+            client_request_id: None,
+            follow_up_thread_id: None,
+            reuse_thread_id: Some(thread_id.to_string()),
+        },
+    )
+    .unwrap_or_else(|err| panic!("{err}"))
+}
+
+fn session_log(cwd: &std::path::Path) -> PathBuf {
+    cwd.join(".gamchi-fake-session-new.jsonl")
+}
+
+#[test]
+fn session_new_installs_meta_rules_and_omits_yolo_mode() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let ledger = Arc::new(Ledger::open(home.path().to_path_buf()).expect("ledger"));
+    let thread_id = thread_with_instructions(&ledger, cwd.path(), "be a reviewer");
+    let outcome = reuse_turn(ledger.clone(), cwd.path(), &thread_id);
+    assert_eq!(outcome.turn.status, TurnStatus::Completed);
+    let stored = ledger.read_thread(&thread_id).unwrap();
+    assert_eq!(stored.acp_session_id, samchi_adapter_grok::STUB_SESSION_ID);
+    let body = std::fs::read_to_string(session_log(cwd.path())).expect("session log");
+    let line: serde_json::Value = serde_json::from_str(body.lines().next().unwrap()).unwrap();
+    assert_eq!(line["rules"], "be a reviewer");
+    assert!(line.get("yoloMode").is_none());
+}
+
+#[test]
+fn empty_instructions_omit_meta_rules() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let ledger = Arc::new(Ledger::open(home.path().to_path_buf()).expect("ledger"));
+    let thread_id = thread_with_instructions(&ledger, cwd.path(), "");
+    reuse_turn(ledger, cwd.path(), &thread_id);
+    let body = std::fs::read_to_string(session_log(cwd.path())).expect("session log");
+    let line: serde_json::Value = serde_json::from_str(body.lines().next().unwrap()).unwrap();
+    assert!(line["rules"].is_null());
+}
+
+#[test]
+fn two_threads_same_cwd_do_not_leak_rules() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let ledger = Arc::new(Ledger::open(home.path().to_path_buf()).expect("ledger"));
+    let a = thread_with_instructions(&ledger, cwd.path(), "role A");
+    let b = thread_with_instructions(&ledger, cwd.path(), "role B");
+    reuse_turn(ledger.clone(), cwd.path(), &a);
+    reuse_turn(ledger, cwd.path(), &b);
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(session_log(cwd.path()))
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["rules"], "role A");
+    assert_eq!(lines[1]["rules"], "role B");
+}
+
+#[test]
+fn follow_up_load_does_not_resend_rules() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let ledger = Arc::new(Ledger::open(home.path().to_path_buf()).expect("ledger"));
+    let thread_id = thread_with_instructions(&ledger, cwd.path(), "frozen");
+    reuse_turn(ledger.clone(), cwd.path(), &thread_id);
+    run_turn(
+        ledger,
+        &TurnRequest {
+            cwd: cwd.path().to_path_buf(),
+            prompt: "two".to_string(),
+            approval: ApprovalPolicy::Never,
+            sandbox: ThreadSandbox::WorkspaceWrite,
+            extra: samchi_adapter_grok::ExtraSpawnFields::default(),
+            model: "test".to_string(),
+            effort: String::new(),
+            command: fake_command(),
+            client_request_id: None,
+            follow_up_thread_id: Some(thread_id),
+            reuse_thread_id: None,
+        },
+    )
+    .unwrap_or_else(|err| panic!("{err}"));
+    let n = std::fs::read_to_string(session_log(cwd.path()))
+        .unwrap()
+        .lines()
+        .count();
+    assert_eq!(n, 1, "session/load must not write another session/new");
+}
+
+#[test]
+fn session_id_persist_failure_stops_before_prompt() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    std::fs::write(cwd.path().join(".gamchi-fail-set-acp-session-id"), b"").unwrap();
+    let ledger = Arc::new(Ledger::open(home.path().to_path_buf()).expect("ledger"));
+    let thread_id = thread_with_instructions(&ledger, cwd.path(), "frozen");
+    let err = run_turn(
+        ledger.clone(),
+        &TurnRequest {
+            cwd: cwd.path().to_path_buf(),
+            prompt: "ping".to_string(),
+            approval: ApprovalPolicy::Never,
+            sandbox: ThreadSandbox::WorkspaceWrite,
+            extra: samchi_adapter_grok::ExtraSpawnFields::default(),
+            model: "test".to_string(),
+            effort: String::new(),
+            command: fake_command(),
+            client_request_id: None,
+            follow_up_thread_id: None,
+            reuse_thread_id: Some(thread_id.clone()),
+        },
+    )
+    .expect_err("persist failure");
+    let _ = err;
+    let stored = ledger.read_thread(&thread_id).unwrap();
+    assert!(stored.acp_session_id.is_empty());
+    let turns = ledger.list_turns(None).unwrap();
+    assert_eq!(turns.len(), 1);
+    assert_eq!(turns[0].status, TurnStatus::Failed);
+    assert!(turns[0].failure_reason.contains("persistence failed"));
+}

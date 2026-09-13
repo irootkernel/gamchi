@@ -214,11 +214,13 @@ Grok project discovery; do not write those files to deliver parent
 `developerInstructions`. TASK-031 implements refuse-only.
 
 [ADR-0004](../architecture-decision-records/0004-developer-instructions-meta-rules.md)
-supersedes that channel decision: grok 1.0.30 honors `session/new`
-`_meta.rules`, and `session/load` on a new process restores them
-without re-sending rules. **Current runtime still refuses** non-empty
-values until TASK-034. Refuse-only remains safe refusal, not
-role-instruction attach.
+supersedes that channel decision. Current runtime freezes a valid
+non-empty `developerInstructions` string and installs it on first-turn
+`session/new` `_meta.rules`. Follow-up restores with `session/load` of
+the stored ACP session id and does not re-send rules. Do not bundle
+`_meta.yoloMode`. Persist the ACP session id before `session/prompt`.
+Live app-server honor remains the TASK-035 gate; `make test` does not
+call live Grok.
 
 This epic does not make a Dolgorae Profile able to launch gamchi.
 Remaining attach (later work): Codex 0.153.4 Profile validation,

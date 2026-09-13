@@ -33,7 +33,21 @@ pub async fn run_fake_agent(transport: impl ConnectTo<Agent>) -> Result<()> {
             agent_client_protocol::on_receive_request!(),
         )
         .on_receive_request(
-            async move |_req: NewSessionRequest, responder, _connection| {
+            async move |req: NewSessionRequest, responder, _connection| {
+                let rules = req
+                    .meta
+                    .as_ref()
+                    .and_then(|meta| meta.get("rules"))
+                    .cloned();
+                let line = serde_json::json!({"rules": rules});
+                if let Ok(mut file) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(".gamchi-fake-session-new.jsonl")
+                {
+                    use std::io::Write as _;
+                    let _ = writeln!(file, "{line}");
+                }
                 responder.respond(NewSessionResponse::new(SessionId::new(STUB_SESSION_ID)))
             },
             agent_client_protocol::on_receive_request!(),
