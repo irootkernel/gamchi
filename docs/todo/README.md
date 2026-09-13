@@ -7,6 +7,12 @@ does not own roadmap identity or lifecycle status.
 
 This index does not record lifecycle status.
 
+## Adopted execution dossiers
+
+- [TODO-EPIC-008-instruction-apply.md](TODO-EPIC-008-instruction-apply.md)
+  — remaining EPIC-008 apply work (TASK-033..TASK-035). Not lifecycle
+  status.
+
 ## Future candidates
 
 - Dolgorae attach after EPIC-008: Profile is Codex 0.153.4; turns send
