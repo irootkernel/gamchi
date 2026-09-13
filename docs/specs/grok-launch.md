@@ -219,8 +219,8 @@ non-empty `developerInstructions` string and installs it on first-turn
 `session/new` `_meta.rules`. Follow-up restores with `session/load` of
 the stored ACP session id and does not re-send rules. Do not bundle
 `_meta.yoloMode`. Persist the ACP session id before `session/prompt`.
-Live app-server honor remains the TASK-035 gate; `make test` does not
-call live Grok.
+Live app-server honor is recorded by the ignored TASK-035
+`live_instructions` test. `make test` does not call live Grok.
 
 This epic does not make a Dolgorae Profile able to launch gamchi.
 Remaining attach (later work): Codex 0.153.4 Profile validation,

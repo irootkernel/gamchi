@@ -98,6 +98,6 @@ not spawned. TASK-031 app-server tests cover the TASK-029 table as
 refuse-only. `make test` does not call live Grok.
 TASK-033's `_meta.rules` delivery and restore capture is parsed
 offline from `crates/adapter-grok/captures/task-033` (ADR-0004 go for
-apply). TASK-034 implements that channel offline; live app-server honor
-is the pending TASK-035 ignored test. `make test` does not call live
-Grok.
+apply). TASK-034 implements that channel offline. TASK-035's ignored
+`live_instructions` test live-proves app-server apply and restore;
+`make test` still skips it and does not call live Grok.

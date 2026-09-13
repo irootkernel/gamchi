@@ -46,7 +46,7 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: `TASK-035`.
+Next eligible Task: none.
 
 ## Phase index
 
@@ -253,22 +253,17 @@ Status: `In Progress`
 
 Depends on: EPIC-007
 
+Canonical Outcomes: frozen app-server `developerInstructions` install
+on Grok ACP `session/new` `_meta.rules` and restore via `session/load`
+([grok-launch.md](../specs/grok-launch.md),
+[ADR-0004](../architecture-decision-records/0004-developer-instructions-meta-rules.md));
+live app-server honor and process-replace restore
+([TESTING.md](../../TESTING.md)).
+TASK-029..031 remain historical refuse-only. This is role-instruction
+attach, not Dolgorae Profile attach.
+
 Detailed SOT:
 [TODO-EPIC-008-instruction-apply.md](../todo/TODO-EPIC-008-instruction-apply.md).
-
-Shipped so far (TASK-029..TASK-031): refuse-only app-server
-`developerInstructions`
-([grok-launch.md](../specs/grok-launch.md),
-[ADR-0003](../architecture-decision-records/0003-developer-instructions-refuse.md)).
-That is **safe refusal**, not **role-instruction attach**. Current
-runtime applies non-empty start values on `_meta.rules`. Live
-app-server honor is TASK-035.
-
-Remaining Canonical Outcomes (TASK-033..TASK-035): translate frozen
-non-empty `developerInstructions` onto Grok ACP `session/new`
-`_meta.rules`, restore the same string and conversation after child
-exit, and live-prove that path. Do not claim those outcomes until
-TASK-035 passes.
 
 A Dolgorae-shaped app-server parent assigns role/purpose with subset
 `developerInstructions` on `thread/start`. Gamchi either installs that
@@ -321,4 +316,4 @@ install path; `_meta.systemPromptOverride` for ordinary role text.
 | [TASK-031](#epic-008-generation-immutable-developer-instructions) | Apply the captured channel, or refuse non-empty | `Completed` | TASK-030 | Fake agent plus app-server tests for the TASK-029 table: omit/empty still works; non-empty follows the ADR; same-value resume succeeds; change refuses; restore after child exit (first turn → kill → new child `session/load` → second turn). `make test` is the offline gate and does not call live Grok. Go-for-apply requires running and passing the ignored live test against the TASK-031 implementation before completion. That live run must exercise instruction delivery and restoration through Gamchi’s app-server path. `make test` still skips it. If authentication or the execution environment prevents that live run, do not complete; leave remaining verification explicit (`Blocked`, not a skip). Refuse-only stays offline: `make test` proves refusal and the closeout is safe-refusal, not attach-ready. |
 | [TASK-033](#epic-008-generation-immutable-developer-instructions) | Verify `_meta.rules` delivery and restore; adopt apply design | `Completed` | TASK-031 | Live `grok agent stdio`: first-turn `_meta.rules` honor (control NONE) and same-session restore after child exit on a different process (CHECK_A then undisclosed CHECK_B). Specify the exact restore method. Legacy-session and `set_acp_session_id` failure policy explicit. ADR-0004 (or next id) supersedes ADR-0003; current-behavior specs still describe refuse-only. Unauthenticated is Blocked. Compilation is not proof. |
 | [TASK-034](#epic-008-generation-immutable-developer-instructions) | Install frozen developerInstructions on `_meta.rules` | `Completed` | TASK-033 | Adapter installs the frozen string on first-turn `session/new` `_meta.rules` and follows the TASK-033 restore/legacy path. Persist ACP session id or fail before `session/prompt`. No bundled `yoloMode`. Offline TASK-029 table with apply; two threads same cwd do not leak rules. Update current-behavior specs and TESTING.md with a pending TASK-035 live gate. `make test` passes and does not call live Grok. |
-| [TASK-035](#epic-008-generation-immutable-developer-instructions) | Live-prove apply through the app-server path | `Planned` | TASK-034 | Ignored live test through Gamchi app-server: no-rule control, CHECK_A, process replace, same ACP session CHECK_B, same-value resume, change refuse. Record grok version and argv. Unauthenticated is Blocked. `make test` still skips it. Update EPIC-008 Canonical Outcomes only after this gate passes. |
+| [TASK-035](#epic-008-generation-immutable-developer-instructions) | Live-prove apply through the app-server path | `Completed` | TASK-034 | Ignored live test through Gamchi app-server: no-rule control, CHECK_A, process replace, same ACP session CHECK_B, same-value resume, change refuse. Record grok version and argv. Unauthenticated is Blocked. `make test` still skips it. Update EPIC-008 Canonical Outcomes only after this gate passes. |

@@ -15,8 +15,8 @@ root, if present.
 This dossier does not authorize implementation, staging, committing, or
 pushing. TASK-033 observed `_meta.rules` honor and `session/load`
 restore ([ADR-0004](../architecture-decision-records/0004-developer-instructions-meta-rules.md)).
-Start remaining work at `TASK-035`. Current runtime installs
-`_meta.rules` offline; live app-server proof is TASK-035.
+Member tasks TASK-033..035 are done. Remaining handler work is
+whole-epic audit and last-consumer dossier closeout.
 
 Reviewed baseline at dossier adoption: HEAD
 `895dd17c1d0ad1fd53792b99bc01f92a68d2bd2f`. Roadmap member tasks for
