@@ -96,3 +96,6 @@ TASK-030's instruction-channel capture is parsed offline from
 `crates/adapter-grok/captures/task-030` (ADR-0003 refuse). Live Grok is
 not spawned. TASK-031 app-server tests cover the TASK-029 table as
 refuse-only. `make test` does not call live Grok.
+TASK-033's `_meta.rules` delivery and restore capture is parsed
+offline from `crates/adapter-grok/captures/task-033` (ADR-0004 go for
+apply; current runtime still refuses). Live Grok is not spawned.

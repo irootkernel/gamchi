@@ -1,6 +1,6 @@
 # ADR-0003: Refuse non-empty developerInstructions (no spawn-owned apply channel)
 
-- Status: Accepted
+- Status: Superseded by [ADR-0004](0004-developer-instructions-meta-rules.md)
 - Decided: 2026-09-11
 - Evidence: [TASK-030 capture](../../crates/adapter-grok/captures/task-030)
   (live `grok agent stdio`, grok 1.0.25). Not the TASK-003 fake agent,

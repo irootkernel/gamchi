@@ -46,7 +46,7 @@ approvals are TASK-013, not the TASK-010 smoke.
 
 Current Task: none.
 
-Next eligible Task: `TASK-033`.
+Next eligible Task: `TASK-034`.
 
 ## Phase index
 
@@ -57,7 +57,7 @@ Next eligible Task: `TASK-033`.
 | Phase 3 — CCAS-shaped app-server | UDS wire on the same worker, five consumer scenarios | `Completed` | EPIC-005 |
 | Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `Completed` | EPIC-006 |
 | Phase 5 — Product identity | Grok worker command is gamchi | `Completed` | EPIC-007 |
-| Phase 6 — Codex-shaped developer instructions | Socket `developerInstructions` either reach Grok for that thread generation or fail closed | `Planned` | EPIC-008 |
+| Phase 6 — Codex-shaped developer instructions | Socket `developerInstructions` either reach Grok for that thread generation or fail closed | `In Progress` | EPIC-008 |
 
 ## EPIC-001: Foundation
 
@@ -249,7 +249,7 @@ allowlisted leftover-name search. No live Grok rerun. No old-name aliases.
 
 ## EPIC-008: Generation-immutable developer instructions
 
-Status: `Planned`
+Status: `In Progress`
 
 Depends on: EPIC-007
 
@@ -283,8 +283,10 @@ A completed turn kills the Grok child. The next turn starts a new
 process and `session/load`s the stored ACP session. First-turn
 `session/new` delivery is not proof that a later process still has the
 instructions. Distinguish **must not change** from **must not restore
-the same text**. If the observed channel is process-scoped, follow-up
-must re-apply the stored string; that is restore, not a new generation.
+the same text**. TASK-033 observed session-scoped persistence: a new
+process `session/load`s the same ACP session id and does **not**
+re-send `_meta.rules`. That restore is not a new instruction
+generation.
 
 Instructions are role/purpose text, not a sandbox-class security
 boundary. Do not claim they confine Grok the way `--sandbox` claims to.
@@ -292,9 +294,11 @@ boundary. Do not claim they confine Grok the way `--sandbox` claims to.
 ACP `session/new` in the pinned client crate has `cwd`, MCP servers, and
 `_meta` only. Do not prepend instructions onto `session/prompt` user
 input. Do not invent a Grok CLI flag or `_meta` key without a live
-capture that Grok **honors**, not merely echoes. Remaining work adopts
-documented `_meta.rules` only after TASK-033 observes first-turn honor
-and same-session restore. Unauthenticated capture is Blocked.
+capture that Grok **honors**, not merely echoes. TASK-033 observed
+first-turn `_meta.rules` honor and same-session restore
+([ADR-0004](../architecture-decision-records/0004-developer-instructions-meta-rules.md)).
+Current runtime still refuses until TASK-034. Unauthenticated capture
+is Blocked.
 
 This epic is a predecessor for instruction-delivery compatibility. It
 does not make Dolgorae able to select gamchi. Remaining attach work
@@ -314,6 +318,6 @@ install path; `_meta.systemPromptOverride` for ordinary role text.
 | [TASK-029](#epic-008-generation-immutable-developer-instructions) | Spec instruction contract and fail-closed | `Completed` | TASK-028 | grok-launch.md owns the input/lifetime/failure table and states instructions are not a sandbox-class boundary. acp-item-mapping.md says they are not a userMessage and not prompt-prepend. The table covers: omit, JSON null, empty string, whitespace-only, wrong JSON type; resume same value (succeed), different value (refuse), explicit empty; turn/start with forbidden developerInstructions; reuse of a pre-EPIC-008 thread that already stored non-empty text. Statically known unsupported refuses before admit. Runtime apply failure aborts before session/prompt. If a turn was already admitted, publish `failed` and the completion notification so the parent is not left waiting. Omitted/empty first start stays today's no-instruction path. Must not change ≠ must not restore. |
 | [TASK-030](#epic-008-generation-immutable-developer-instructions) | Capture how live grok agent stdio receives instructions | `Completed` | TASK-029 | ADR from a live capture or recorded absence. First investigation candidate: installed Grok `1.0.25` `--rules` (docs.x.ai CLI reference: extra rules appended to the system prompt). Also investigate `--system-prompt-override` / `--system-prompt` (full system-prompt replacement, not the same as `--rules`). Adopt a full replacement only if the ADR verifies its effect on default agent behavior and that required working instructions are preserved; a role-response difference alone is not adoption. `agent stdio` honor is unproven until this capture. Evidence must record grok version and argv, the exact channel, separation from user prompt, an **observable behavior difference** with vs without the text (traffic that only contains the string is not go — sent-but-ignored fails), and survival across first turn → child exit → new child `session/load` → second turn (re-apply if the channel is process-scoped). Distinguish: unverified (Blocked, not a bypass); this-version no-go for apply / go for refuse; go for apply. Unauthenticated is Blocked. Compilation is not proof. |
 | [TASK-031](#epic-008-generation-immutable-developer-instructions) | Apply the captured channel, or refuse non-empty | `Completed` | TASK-030 | Fake agent plus app-server tests for the TASK-029 table: omit/empty still works; non-empty follows the ADR; same-value resume succeeds; change refuses; restore after child exit (first turn → kill → new child `session/load` → second turn). `make test` is the offline gate and does not call live Grok. Go-for-apply requires running and passing the ignored live test against the TASK-031 implementation before completion. That live run must exercise instruction delivery and restoration through Gamchi’s app-server path. `make test` still skips it. If authentication or the execution environment prevents that live run, do not complete; leave remaining verification explicit (`Blocked`, not a skip). Refuse-only stays offline: `make test` proves refusal and the closeout is safe-refusal, not attach-ready. |
-| [TASK-033](#epic-008-generation-immutable-developer-instructions) | Verify `_meta.rules` delivery and restore; adopt apply design | `Planned` | TASK-031 | Live `grok agent stdio`: first-turn `_meta.rules` honor (control NONE) and same-session restore after child exit on a different process (CHECK_A then undisclosed CHECK_B). Specify the exact restore method. Legacy-session and `set_acp_session_id` failure policy explicit. ADR-0004 (or next id) supersedes ADR-0003; current-behavior specs still describe refuse-only. Unauthenticated is Blocked. Compilation is not proof. |
+| [TASK-033](#epic-008-generation-immutable-developer-instructions) | Verify `_meta.rules` delivery and restore; adopt apply design | `Completed` | TASK-031 | Live `grok agent stdio`: first-turn `_meta.rules` honor (control NONE) and same-session restore after child exit on a different process (CHECK_A then undisclosed CHECK_B). Specify the exact restore method. Legacy-session and `set_acp_session_id` failure policy explicit. ADR-0004 (or next id) supersedes ADR-0003; current-behavior specs still describe refuse-only. Unauthenticated is Blocked. Compilation is not proof. |
 | [TASK-034](#epic-008-generation-immutable-developer-instructions) | Install frozen developerInstructions on `_meta.rules` | `Planned` | TASK-033 | Adapter installs the frozen string on first-turn `session/new` `_meta.rules` and follows the TASK-033 restore/legacy path. Persist ACP session id or fail before `session/prompt`. No bundled `yoloMode`. Offline TASK-029 table with apply; two threads same cwd do not leak rules. Update current-behavior specs and TESTING.md with a pending TASK-035 live gate. `make test` passes and does not call live Grok. |
 | [TASK-035](#epic-008-generation-immutable-developer-instructions) | Live-prove apply through the app-server path | `Planned` | TASK-034 | Ignored live test through Gamchi app-server: no-rule control, CHECK_A, process replace, same ACP session CHECK_B, same-value resume, change refuse. Record grok version and argv. Unauthenticated is Blocked. `make test` still skips it. Update EPIC-008 Canonical Outcomes only after this gate passes. |

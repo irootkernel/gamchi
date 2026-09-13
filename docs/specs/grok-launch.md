@@ -208,12 +208,16 @@ string is not proof Grok honors it.
 
 [ADR-0003](../architecture-decision-records/0003-developer-instructions-refuse.md)
 recorded **no-go for apply / go for refuse** from a live grok 1.0.25
-`agent stdio` capture. `--rules` inline text and `--rules` paths
-outside cwd were not honored. `--system-prompt-override` with a unique
-token was not honored. Cwd `AGENTS.md` / `extra.rules` /
-`instruction.rules` were honored as Grok project discovery; do not
-write those files to deliver parent `developerInstructions`. TASK-031
-implements refuse-only. Refuse-only is safe refusal, not
+`agent stdio` capture of CLI `--rules` and `--system-prompt-override`.
+Cwd `AGENTS.md` / `extra.rules` / `instruction.rules` were honored as
+Grok project discovery; do not write those files to deliver parent
+`developerInstructions`. TASK-031 implements refuse-only.
+
+[ADR-0004](../architecture-decision-records/0004-developer-instructions-meta-rules.md)
+supersedes that channel decision: grok 1.0.30 honors `session/new`
+`_meta.rules`, and `session/load` on a new process restores them
+without re-sending rules. **Current runtime still refuses** non-empty
+values until TASK-034. Refuse-only remains safe refusal, not
 role-instruction attach.
 
 This epic does not make a Dolgorae Profile able to launch gamchi.

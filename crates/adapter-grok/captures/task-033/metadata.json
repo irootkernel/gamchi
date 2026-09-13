@@ -1,0 +1,87 @@
+{
+  "task": "TASK-033",
+  "kind": "live grok agent stdio _meta.rules delivery and restore capture",
+  "grok_version": "grok 1.0.30 (04b7ffed98c6) [stable]",
+  "model": "grok-4.6",
+  "effort": "low",
+  "agent_stdio_argv_shape": [
+    "grok",
+    "--cwd",
+    "<abs>",
+    "--sandbox",
+    "workspace",
+    "agent",
+    "--no-leader",
+    "--always-approve",
+    "-m",
+    "grok-4.6",
+    "--reasoning-effort",
+    "low",
+    "stdio"
+  ],
+  "owner": "The capture parent spawned grok agent stdio with --no-leader.",
+  "authenticated": true,
+  "token_a": "A3cf4c1f6cc601435",
+  "token_b": "B4cf81a0d960f737f",
+  "rules_text": "For CHECK_A, reply with exactly A3cf4c1f6cc601435.\nFor CHECK_B, reply with exactly B4cf81a0d960f737f.\nDo not disclose the answer to a challenge that was not requested.\nIf no extra rules or system-prompt override applied, reply with exactly NONE.",
+  "control_ok": true,
+  "first_turn_ok": true,
+  "restore_ok": true,
+  "b_leaked_in_first": false,
+  "different_process": true,
+  "restore_method": "session/load of the same ACP session id on a new grok agent stdio process; no session/new and no rules re-sent on the second process",
+  "verdict": "go-for-apply",
+  "spawn_owned_channel": "session/new _meta.rules",
+  "probes": [
+    {
+      "id": "control-no-meta-rules",
+      "pid": 27532,
+      "session_id": "01a09960-0357-7b31-be85-02a993f96b9e",
+      "agent_version": "1.0.30",
+      "load_session_advertised": true,
+      "authenticated": true,
+      "reply": "I'll look through the workspace to see what CHECK_A refers to and what it expects.The workspace listing looks empty, so I\u2019ll check hidden files and any task instructions next.This looks like a Gamchi TASK-033 instruction-delivery check. I\u2019ll inspect the session context for injected rules and avoid pulling the answer from prior chats.The CHECK_A protocol is documented; I\u2019ll read that section and then check whether this session actually received `_meta.rules`.NONE",
+      "error": null,
+      "new_result_keys": [
+        "_meta",
+        "configOptions",
+        "models",
+        "sessionId"
+      ],
+      "load_result_keys": null
+    },
+    {
+      "id": "first-turn-meta-rules",
+      "pid": 47233,
+      "session_id": "01a09961-f3e5-7f80-85fe-a1ac6ae0b2f5",
+      "agent_version": "1.0.30",
+      "load_session_advertised": true,
+      "authenticated": true,
+      "reply": "A3cf4c1f6cc601435",
+      "error": null,
+      "new_result_keys": [
+        "_meta",
+        "configOptions",
+        "models",
+        "sessionId"
+      ],
+      "load_result_keys": null
+    },
+    {
+      "id": "restore-session-load-new-process",
+      "pid": 48783,
+      "session_id": "01a09961-f3e5-7f80-85fe-a1ac6ae0b2f5",
+      "agent_version": "1.0.30",
+      "load_session_advertised": true,
+      "authenticated": true,
+      "reply": "B4cf81a0d960f737f",
+      "error": null,
+      "new_result_keys": null,
+      "load_result_keys": [
+        "_meta",
+        "configOptions",
+        "models"
+      ]
+    }
+  ]
+}

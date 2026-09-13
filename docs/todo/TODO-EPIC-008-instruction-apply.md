@@ -13,8 +13,9 @@ and status. Review record: untracked `FEEDBACK.md` at the repository
 root, if present.
 
 This dossier does not authorize implementation, staging, committing, or
-pushing. Start remaining work with `/aquarium:task-handler` on
-`TASK-033`.
+pushing. TASK-033 observed `_meta.rules` honor and `session/load`
+restore ([ADR-0004](../architecture-decision-records/0004-developer-instructions-meta-rules.md)).
+Start remaining work at `TASK-034`.
 
 Reviewed baseline at dossier adoption: HEAD
 `895dd17c1d0ad1fd53792b99bc01f92a68d2bd2f`. Roadmap member tasks for
@@ -70,14 +71,13 @@ first turn/start:
 subsequent turn/start:
   admit the turn
   spawn a new Grok process and initialize ACP
-  load the same stored ACP session
-  preserve or reapply rules using the exact sequence TASK-033 observed
+  session/load the stored ACP session id (cwd + empty mcpServers)
+  do not re-send _meta.rules
   only then send session/prompt
 ```
 
-If the verified restore operation needs different ordering, TASK-033
-specifies that sequence. Do not treat the diagram as a new protocol
-guarantee.
+TASK-033 observed that sequence. Do not treat the diagram as a new
+protocol guarantee beyond that capture.
 
 Invariants: one immutable instruction string per Gamchi thread; one
 continuous ACP conversation; no user prompt after a known
@@ -111,9 +111,10 @@ instruction metadata. After a turn it kills the Grok child (about line
 `set_acp_session_id` currently discards the persistence result
 (`let _ = ...` at about line 480) and can still send `session/prompt`.
 
-ADR-0003 (`Accepted`): this-version no-go for apply / go for refuse. Do
-not install through a Grok CLI flag, ACP `_meta` key, prompt-prepend, or a
-cwd instruction file.
+ADR-0003 was `Accepted` at refuse-only closeout and is now
+**Superseded** by ADR-0004. Do not install through a Grok CLI flag,
+prompt-prepend, or a cwd instruction file. TASK-034 installs through
+`session/new` `_meta.rules`. Current runtime still refuses.
 
 `docs/specs/grok-launch.md` and `docs/specs/product.md` describe that
 refuse-only contract as current behavior.
@@ -196,14 +197,12 @@ Control `NONE` plus two different unique tokens rules out leftover
 contamination from prior runs of those tokens.
 
 **Evidence grade:** reported by the planning session; not independently
-rerun by the 2026-09-13 reviewer. TASK-033 must reproduce initial
-`_meta.rules` delivery with full provenance. Documentation that `_meta`
-fields exist is not a version-pinned runtime capture.
-
-This re-probe did **not** prove survival across child exit → same ACP
-session id on a **different process** → second prompt. It also used the
-same secret-token question, so it cannot serve as restore proof (the
-model could repeat the first answer from history).
+rerun by the 2026-09-13 reviewer. TASK-033 reproduced initial
+`_meta.rules` delivery and restore with full provenance on grok
+1.0.30: control `NONE`, first-turn CHECK_A, then a different process
+`session/load` of the same ACP session id answered undisclosed
+CHECK_B. Rules were not re-sent on load. See
+`crates/adapter-grok/captures/task-033` and ADR-0004.
 
 A cwd `AGENTS.md` probe in the same script returned `NONE`; the user
 prompt named “extra rules or system-prompt override”, so that miss is
@@ -308,7 +307,7 @@ capabilities, and error handling.
 
 | Observed result | Acceptable decision |
 | --- | --- |
-| Rules persist in the session; a new process restores them on load | Load that session using the demonstrated sequence |
+| Rules persist in the session; a new process restores them on load | **Observed (TASK-033):** `session/load` the stored ACP session id on a new process; do not re-send `_meta.rules` |
 | Rules do not persist, but a same-session reapplication operation is verified | Specify and use that exact operation before prompting |
 | No supported restore route is demonstrated | Keep the requirement unmet; do not invent a protocol operation |
 
