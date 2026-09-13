@@ -13,6 +13,16 @@ None.
 
 ## Future candidates
 
+- Enforce ADR-0004 fail-closed for an ACP session without install
+  provenance if a second writer can store non-empty
+  `developerInstructions` together with a pre-install `acp_session_id`
+  (EPIC-008 validation Lows F001/F003). v1 adds no provenance column
+  and the app-server path cannot create that mixed row: persist the
+  session id only after the `session/new` that applied `_meta.rules`
+  or the empty no-instruction `session/new`. TASK-031 never admitted
+  non-empty values. Re-enter if MCP, CLI, or another ledger writer
+  can set both fields independently. The round-1 review predates
+  this note.
 - Dolgorae attach after EPIC-008: Profile is Codex 0.153.4; turns send
   `networkAccess: false` and write turns send `writableRoots`; gamchi
   refuses those extras and unverified `read-only`. Instruction
