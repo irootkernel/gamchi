@@ -293,8 +293,8 @@ input. Do not invent a Grok CLI flag or `_meta` key without a live
 capture that Grok **honors**, not merely echoes. TASK-033 observed
 first-turn `_meta.rules` honor and same-session restore
 ([ADR-0004](../architecture-decision-records/0004-developer-instructions-meta-rules.md)).
-Current runtime still refuses until TASK-034. Unauthenticated capture
-is Blocked.
+Current runtime installs frozen non-empty values on `_meta.rules`.
+Unauthenticated capture is Blocked.
 
 This epic is a predecessor for instruction-delivery compatibility. It
 does not make Dolgorae able to select gamchi. Remaining attach work
@@ -302,7 +302,7 @@ does not make Dolgorae able to select gamchi. Remaining attach work
 runs Codex schema generation; Dolgorae turns send `networkAccess:
 false` and write turns send `writableRoots` (gamchi refuses those
 extras); gamchi also refuses unverified `sandbox=read-only`. TASK-031
-closeout was **safe refusal**. Remaining tasks attach via `_meta.rules`.
+closeout was **safe refusal**. TASK-033..035 attached via `_meta.rules`.
 
 Non-goals: Dolgorae Profile or adapter (other repo); `thread/fork`; MCP
 `grok_spawn` instruction field; Camchi/Zamchi; prompt-prepend; CCAS

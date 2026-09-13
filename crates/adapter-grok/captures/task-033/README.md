@@ -25,5 +25,5 @@ Restore method: `session/load` of the stored ACP session id on a new
 persistence, not a process-scoped re-install.
 
 See [ADR-0004](../../../../docs/architecture-decision-records/0004-developer-instructions-meta-rules.md).
-Current runtime still refuses non-empty `developerInstructions` until
-TASK-034.
+This capture predates TASK-034, which installed `_meta.rules` in the
+adapter.

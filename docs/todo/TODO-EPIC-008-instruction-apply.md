@@ -89,10 +89,11 @@ This is **role-instruction attach**, not Dolgorae Profile attach.
 Profile selection, `networkAccess: false`, `writableRoots`, and
 unverified `sandbox=read-only` remain out of scope.
 
-## 2. What shipped (as-is)
+## 2. What shipped (as-is at refuse-only closeout)
 
-EPIC-008 (TASK-029, TASK-030, TASK-031) is marked `Completed`. Phase 6 is
-marked `Completed`. Canonical outcomes currently say **refuse-only**.
+Historical snapshot from before TASK-033..035. EPIC-008 (TASK-029,
+TASK-030, TASK-031) was marked `Completed` and Canonical Outcomes said
+**refuse-only**. Current apply behavior is TASK-034/035.
 
 Current behavior in `crates/gamchi/src/app_server.rs`:
 
@@ -115,7 +116,7 @@ instruction metadata. After a turn it kills the Grok child (about line
 ADR-0003 was `Accepted` at refuse-only closeout and is now
 **Superseded** by ADR-0004. Do not install through a Grok CLI flag,
 prompt-prepend, or a cwd instruction file. TASK-034 installs through
-`session/new` `_meta.rules`. Current runtime still refuses.
+`session/new` `_meta.rules`. TASK-034 installed that channel.
 
 `docs/specs/grok-launch.md` and `docs/specs/product.md` describe that
 refuse-only contract as current behavior.
