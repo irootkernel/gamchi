@@ -33,6 +33,14 @@ pub enum AgentCommand {
     Override { program: PathBuf, args: Vec<String> },
 }
 
+/// Test-only sentinel for `set_acp_session_id` failure. Honored only on
+/// [`AgentCommand::Override`], never on a live Grok spawn.
+const PERSIST_FAIL_SENTINEL: &str = ".gamchi-fail-set-acp-session-id";
+
+fn inject_persist_failure(command: &AgentCommand, cwd: &Path) -> bool {
+    matches!(command, AgentCommand::Override { .. }) && cwd.join(PERSIST_FAIL_SENTINEL).exists()
+}
+
 /// One adapter turn.
 #[derive(Debug, Clone)]
 pub struct TurnRequest {
@@ -114,6 +122,8 @@ struct Shared {
     approval: ApprovalPolicy,
     /// `session/load` replay is history, not new-turn items or approvals.
     history: bool,
+    /// Override-only snapshot of [`inject_persist_failure`].
+    inject_persist_failure: bool,
 }
 
 /// Admit a ledger turn, spawn the ACP child, map updates, publish terminal.
@@ -249,6 +259,7 @@ async fn run_turn_async(
         fatal: None,
         approval: req.approval,
         history: false,
+        inject_persist_failure: inject_persist_failure(&req.command, &req.cwd),
     }));
 
     let mut std_cmd = std::process::Command::new(&plan.program);
@@ -426,7 +437,14 @@ async fn drive_prompt(
     prompt: &str,
     shared: &Arc<Mutex<Shared>>,
 ) -> agent_client_protocol::Result<StopReason> {
-    let (ledger, turn_id, thread_id, load_session_id, developer_instructions) = {
+    let (
+        ledger,
+        turn_id,
+        thread_id,
+        load_session_id,
+        developer_instructions,
+        inject_persist_failure,
+    ) = {
         let inner = shared.lock().expect("mapper");
         (
             inner.ledger.clone(),
@@ -434,6 +452,7 @@ async fn drive_prompt(
             inner.thread_id.clone(),
             inner.load_session_id.clone(),
             inner.developer_instructions.clone(),
+            inner.inject_persist_failure,
         )
     };
     let caps = ClientCapabilities::new().fs(FileSystemCapabilities::new()
@@ -487,7 +506,7 @@ async fn drive_prompt(
             new_req = new_req.meta(meta);
         }
         let session = connection.send_request(new_req).block_task().await?;
-        if cwd.join(".gamchi-fail-set-acp-session-id").exists() {
+        if inject_persist_failure {
             let _ = ledger.publish_terminal(
                 &turn_id,
                 TurnStatus::Failed,
@@ -791,5 +810,23 @@ mod confined_tests {
         assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
         let err = confined(dir.path(), Path::new("/etc/passwd")).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+    }
+
+    #[test]
+    fn persist_failure_sentinel_is_override_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(PERSIST_FAIL_SENTINEL);
+        fs::write(&path, b"").unwrap();
+        let grok = AgentCommand::Grok {
+            program: PathBuf::from("grok"),
+        };
+        let fake = AgentCommand::Override {
+            program: PathBuf::from("fake"),
+            args: Vec::new(),
+        };
+        assert!(inject_persist_failure(&fake, dir.path()));
+        assert!(!inject_persist_failure(&grok, dir.path()));
+        fs::remove_file(&path).unwrap();
+        assert!(!inject_persist_failure(&fake, dir.path()));
     }
 }
