@@ -103,6 +103,12 @@ and on-request park ACP `session/request_permission` while the turn stays
 `inProgress`. `pending_approval` is not a TurnStatus. Default `never` still
 auto-approves. TASK-014 forbids auto-replay of the same input after a dead
 generation: observe `failed`/`worker_gone` only. Crash is not `interrupted`.
+TASK-036 reaps the Grok process group on MCP stdin EOF and SIGINT/SIGTERM
+without publishing `interrupted`; later observe is `worker_gone` if no
+terminal record exists. Explicit `grok_cancel` stays `interrupted`. Turn end
+uses process-group teardown, a zombie leader is dead, and tests Drop-reap
+app-server children. SIGKILL of the owner stays TASK-014 `worker_gone` and
+is not a guaranteed reap.
 TASK-015 publishes the app-server facade listen:
 `app-server --listen unix://<absolute-path> [--home]`. The process owns the
 Unix socket, upgrades HTTP/1.1 GET `/` to WebSocket, and fails closed on an

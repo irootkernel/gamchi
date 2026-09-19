@@ -40,7 +40,9 @@ Launch with `--no-leader`.
 [ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md) keeps v1
 on parent-owned `grok agent stdio`; `grok agent leader` / `grok agent serve`
 were not captured as the owner. Stdio connect is not proof of an isolated
-backend.
+daemon. The child is a new process group so cancel can `killpg` it.
+MCP stdin EOF and SIGINT/SIGTERM tear that group down. SIGKILL of the
+owner is not a guaranteed reap.
 
 v1 argv for default never + workspace-write, after model/effort
 resolution, is:

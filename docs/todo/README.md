@@ -28,9 +28,6 @@ None.
   refuses those extras and unverified `read-only`. Instruction
   delivery is a predecessor, not attach. Re-enter when Dolgorae owns a
   non-Codex Profile or a Gamchi adapter.
-- Teardown should treat a zombie child as dead (`waitpid` `WNOHANG` or
-  equivalent) so `grok_cancel` does not wait ~2.5s after SIGTERM
-  (EPIC-004 confirmation Lows F001/F002).
 - Add a deterministic test for the post-`set_child_pid` terminal-abort
   branch (EPIC-004 confirmation Low F003). The immediate-cancel MCP
   test can miss that branch.

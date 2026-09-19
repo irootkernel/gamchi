@@ -3,6 +3,8 @@
 # Sorage handoff marker (not the gamchi ledger; ledger is ~/.gamchi)
 .sorage/
 .gamchi/
+# Fake ACP agent session/new probe log (cwd of the fake child, not ~/.gamchi)
+.gamchi-fake-session-new.jsonl
 .omc/
 # Mulgae project policy and local state
 /.mulgae/*

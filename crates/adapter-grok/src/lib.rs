@@ -23,5 +23,8 @@ pub use launch::{
     UNENFORCEABLE_EXTRA_FIELD_NAMES,
 };
 pub use map::{emit_item_type, ExcludedFatal, Mapper};
-pub use teardown::teardown_process_group;
+pub use teardown::{
+    install_signal_teardown, parent_exit_teardown, shutting_down, teardown_process_group,
+    track_child,
+};
 pub use turn::{run_turn, run_turn_on_admit, AdapterError, AgentCommand, TurnOutcome, TurnRequest};

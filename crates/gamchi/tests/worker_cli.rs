@@ -3,9 +3,10 @@
 use samchi_core::ledger::{Ledger, NewThread, NewTurn};
 use samchi_core::source_wire::{ApprovalPolicy, ThreadSandbox, TurnStatus, UserInput};
 use serde_json::Value;
+use std::io::BufRead;
 use std::path::Path;
-use std::process::Command;
-use std::time::Instant;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_gamchi")
@@ -256,6 +257,85 @@ fn owner_death_is_worker_gone_not_replayed() {
         .expect("result");
     let done: Value = serde_json::from_str(&String::from_utf8_lossy(&result.stdout)).unwrap();
     assert_eq!(done["status"], "failed");
+}
+
+fn wait_child_pid(home: &Path, turn_id: &str) -> u32 {
+    let ledger = Ledger::open(home.to_path_buf()).expect("ledger");
+    let start = Instant::now();
+    loop {
+        let turn = ledger.read_turn(turn_id).expect("turn");
+        if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
+            if let Some(pid) = generation.child_pid {
+                return pid;
+            }
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "child_pid never appeared"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn worker_sigterm_reaps_hanging_child() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut child = Command::new(bin())
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_FAKE_HANG_SECS", "60")
+        .args([
+            "worker",
+            "start",
+            "--json",
+            "--home",
+            home.path().to_str().unwrap(),
+            "--cwd",
+            cwd.path().to_str().unwrap(),
+            "hang",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("start");
+    let mut stdout = child.stdout.take().expect("stdout");
+    let mut line = String::new();
+    let mut reader = std::io::BufReader::new(&mut stdout);
+    reader.read_line(&mut line).expect("ids");
+    let v: Value = serde_json::from_str(line.trim()).expect("json");
+    let turn_id = v["turn_id"].as_str().expect("turn_id").to_string();
+    let grok_pid = wait_child_pid(home.path(), &turn_id);
+    struct ReapPid(u32);
+    impl Drop for ReapPid {
+        fn drop(&mut self) {
+            samchi_adapter_grok::teardown_process_group(self.0);
+        }
+    }
+    let _reap = ReapPid(grok_pid);
+    assert!(Command::new("kill")
+        .args(["-TERM", &child.id().to_string()])
+        .status()
+        .expect("sigterm")
+        .success());
+    let _ = child.wait();
+    let start = Instant::now();
+    loop {
+        let alive = Command::new("kill")
+            .args(["-0", &grok_pid.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !alive {
+            break;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(2),
+            "hanging child {grok_pid} must die on SIGTERM"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 #[test]

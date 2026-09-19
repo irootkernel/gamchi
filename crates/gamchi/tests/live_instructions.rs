@@ -8,6 +8,7 @@ use base64::Engine;
 use samchi_core::ledger::Ledger;
 use serde_json::Value;
 use std::io::{Read, Write};
+use std::ops::{Deref, DerefMut};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -41,8 +42,44 @@ fn unique_sock() -> PathBuf {
     ))
 }
 
-fn spawn_listen(url: &str, home: &Path) -> Child {
-    Command::new(bin())
+struct ListenChild {
+    child: Child,
+    sock: PathBuf,
+    home: PathBuf,
+}
+
+impl Deref for ListenChild {
+    type Target = Child;
+    fn deref(&self) -> &Child {
+        &self.child
+    }
+}
+
+impl DerefMut for ListenChild {
+    fn deref_mut(&mut self) -> &mut Child {
+        &mut self.child
+    }
+}
+
+impl Drop for ListenChild {
+    fn drop(&mut self) {
+        stop(&mut self.child, &self.sock);
+        if let Ok(ledger) = Ledger::open(self.home.clone()) {
+            if let Ok(turns) = ledger.list_turns(None) {
+                for turn in turns {
+                    if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
+                        if let Some(pid) = generation.child_pid {
+                            samchi_adapter_grok::teardown_process_group(pid);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn spawn_listen(url: &str, home: &Path) -> ListenChild {
+    let child = Command::new(bin())
         .args([
             "app-server",
             "--listen",
@@ -54,7 +91,12 @@ fn spawn_listen(url: &str, home: &Path) -> Child {
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn app-server")
+        .expect("spawn app-server");
+    ListenChild {
+        child,
+        sock: PathBuf::from(url.strip_prefix("unix://").expect("unix listen url")),
+        home: home.to_path_buf(),
+    }
 }
 
 fn wait_for_sock(path: &Path, child: &mut Child) {

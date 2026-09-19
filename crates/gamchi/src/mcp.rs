@@ -29,9 +29,15 @@ pub fn run_mcp(args: &[&str], stdin: &mut dyn BufRead, stdout: &mut dyn Write) -
     loop {
         line.clear();
         match stdin.read_line(&mut line) {
-            Ok(0) => return 0,
+            Ok(0) => {
+                samchi_adapter_grok::parent_exit_teardown();
+                return 0;
+            }
             Ok(_) => {}
-            Err(_) => return 1,
+            Err(_) => {
+                samchi_adapter_grok::parent_exit_teardown();
+                return 1;
+            }
         }
         if line.trim().is_empty() {
             continue;

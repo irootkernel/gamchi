@@ -22,6 +22,7 @@ struct Rpc {
     stdin: std::process::ChildStdin,
     stdout: BufReader<std::process::ChildStdout>,
     next_id: u64,
+    home: PathBuf,
 }
 
 impl Rpc {
@@ -51,6 +52,7 @@ impl Rpc {
             stdin,
             stdout,
             next_id: 1,
+            home: PathBuf::from(home),
         }
     }
 
@@ -75,6 +77,18 @@ impl Rpc {
 impl Drop for Rpc {
     fn drop(&mut self) {
         let _ = self.child.kill();
+        let _ = self.child.wait();
+        if let Ok(ledger) = Ledger::open(self.home.clone()) {
+            if let Ok(turns) = ledger.list_turns(None) {
+                for turn in turns {
+                    if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
+                        if let Some(pid) = generation.child_pid {
+                            samchi_adapter_grok::teardown_process_group(pid);
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -627,4 +641,80 @@ fn spawn_model_effort_and_followup_mismatch() {
     let stored = ledger.read_turn(second).unwrap();
     assert_eq!(stored.effort, "high");
     assert_eq!(stored.model, "grok-4.6");
+}
+
+fn wait_child_pid(home: &std::path::Path, turn_id: &str) -> u32 {
+    let ledger = Ledger::open(home.to_path_buf()).expect("ledger");
+    let start = std::time::Instant::now();
+    loop {
+        let turn = ledger.read_turn(turn_id).expect("turn");
+        if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
+            if let Some(pid) = generation.child_pid {
+                return pid;
+            }
+        }
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(5),
+            "child_pid never appeared"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+}
+
+fn pid_running(pid: u32) -> bool {
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+#[test]
+fn mcp_stdin_eof_reaps_hanging_child() {
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let mut child = Command::new(bin())
+        .args(["mcp", "--home", home.path().to_str().unwrap()])
+        .env("GAMCHI_ACP_PROGRAM", fake_agent())
+        .env("GAMCHI_FAKE_HANG_SECS", "60")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("mcp");
+    let mut stdin = child.stdin.take().expect("stdin");
+    let mut stdout = BufReader::new(child.stdout.take().expect("stdout"));
+    let init = json!({
+        "jsonrpc":"2.0","id":1,"method":"initialize",
+        "params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}
+    });
+    writeln!(stdin, "{init}").unwrap();
+    stdin.flush().unwrap();
+    let mut line = String::new();
+    stdout.read_line(&mut line).unwrap();
+    let call = json!({
+        "jsonrpc":"2.0","id":2,"method":"tools/call",
+        "params":{"name":"grok_spawn","arguments":{"prompt":"hang","cwd": cwd.path().to_str().unwrap()}}
+    });
+    writeln!(stdin, "{call}").unwrap();
+    stdin.flush().unwrap();
+    line.clear();
+    stdout.read_line(&mut line).unwrap();
+    let resp: Value = serde_json::from_str(&line).unwrap();
+    let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+    let spawn: Value = serde_json::from_str(text).unwrap();
+    let turn_id = spawn["turn_id"].as_str().unwrap().to_string();
+    let pid = wait_child_pid(home.path(), &turn_id);
+    drop(stdin);
+    let status = child.wait().expect("mcp exit");
+    assert!(
+        status.success(),
+        "mcp stdin EOF should exit 0, got {status}"
+    );
+    assert!(
+        !pid_running(pid),
+        "hanging child {pid} must die on stdin EOF"
+    );
 }

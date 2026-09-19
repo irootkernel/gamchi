@@ -3,7 +3,7 @@
 use crate::defaults::{load_home_defaults, resolve_first_turn, resolve_follow_up};
 use crate::launch::{plan_launch, ExtraSpawnFields, LaunchError, LaunchPlan, LaunchRequest};
 use crate::map::Mapper;
-use crate::teardown::teardown_process_group;
+use crate::teardown::{begin_acp_spawn, shutting_down, track_child};
 use agent_client_protocol::schema::v1::{
     ClientCapabilities, ContentBlock, FileSystemCapabilities, InitializeRequest,
     LoadSessionRequest, Meta, NewSessionRequest, PermissionOptionKind, PromptRequest,
@@ -274,17 +274,26 @@ async fn run_turn_async(
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    let _spawn_gate = begin_acp_spawn();
+    if shutting_down() {
+        return Ok(TurnOutcome {
+            turn: ledger.read_turn(&turn_id)?,
+            files_changed: Vec::new(),
+            files_changed_complete: false,
+        });
+    }
     let mut child = cmd
         .spawn()
         .map_err(AdapterError::Io)
         .map_err(fail_admitted)?;
     let child_pid = child.id();
+    let _reap = track_child(child_pid)
+        .map_err(|_| fail_admitted(AdapterError::Acp("too many live ACP children".to_string())))?;
+    drop(_spawn_gate);
     ledger
         .set_child_pid(&generation_id, child_pid)
         .map_err(|e| fail_admitted(e.into()))?;
-    if ledger.read_turn(&turn_id)?.status.is_terminal() {
-        teardown_process_group(child_pid);
-        let _ = child.kill();
+    if ledger.read_turn(&turn_id)?.status.is_terminal() || shutting_down() {
         return Ok(TurnOutcome {
             turn: ledger.read_turn(&turn_id)?,
             files_changed: Vec::new(),
@@ -411,7 +420,7 @@ async fn run_turn_async(
         })
         .await;
 
-    let _ = child.kill();
+    drop(_reap);
     let _ = tokio::time::timeout(Duration::from_secs(2), child.status()).await;
     let _ = ledger.mark_child_eof(&generation_id);
 

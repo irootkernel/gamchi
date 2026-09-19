@@ -58,6 +58,7 @@ Next eligible Task: none.
 | Phase 4 — Selectable Grok model | Parents choose model and reasoning effort on the same worker | `Completed` | EPIC-006 |
 | Phase 5 — Product identity | Grok worker command is gamchi | `Completed` | EPIC-007 |
 | Phase 6 — Codex-shaped developer instructions | Socket `developerInstructions` either reach Grok for that thread generation or fail closed | `Completed` | EPIC-008 |
+| Phase 7 — Child lifetime | Parent exit and tests reap Grok and app-server children | `Completed` | EPIC-009 |
 
 ## EPIC-001: Foundation
 
@@ -314,3 +315,22 @@ install path; `_meta.systemPromptOverride` for ordinary role text.
 | [TASK-033](#epic-008-generation-immutable-developer-instructions) | Verify `_meta.rules` delivery and restore; adopt apply design | `Completed` | TASK-031 | Live `grok agent stdio`: first-turn `_meta.rules` honor (control NONE) and same-session restore after child exit on a different process (CHECK_A then undisclosed CHECK_B). Specify the exact restore method. Legacy-session and `set_acp_session_id` failure policy explicit. ADR-0004 (or next id) supersedes ADR-0003; current-behavior specs still describe refuse-only. Unauthenticated is Blocked. Compilation is not proof. |
 | [TASK-034](#epic-008-generation-immutable-developer-instructions) | Install frozen developerInstructions on `_meta.rules` | `Completed` | TASK-033 | Adapter installs the frozen string on first-turn `session/new` `_meta.rules` and follows the TASK-033 restore/legacy path. Persist ACP session id or fail before `session/prompt`. No bundled `yoloMode`. Offline TASK-029 table with apply; two threads same cwd do not leak rules. Update current-behavior specs and TESTING.md with a pending TASK-035 live gate. `make test` passes and does not call live Grok. |
 | [TASK-035](#epic-008-generation-immutable-developer-instructions) | Live-prove apply through the app-server path | `Completed` | TASK-034 | Ignored live test through Gamchi app-server: no-rule control, CHECK_A, process replace, same ACP session CHECK_B, same-value resume, change refuse. Record grok version and argv. Unauthenticated is Blocked. `make test` still skips it. Update EPIC-008 Canonical Outcomes only after this gate passes. |
+
+## EPIC-009: Reap leftover children
+
+Status: `Completed`
+
+Depends on: EPIC-008
+
+Canonical Outcomes: graceful parent exit tears down the Grok process group
+without publishing `interrupted`; tests Drop-reap app-server and ACP
+children; turn end uses process-group teardown; zombie children are dead
+for wait. SIGKILL of the owner stays TASK-014 `worker_gone` and is not
+SIGKILL-proof.
+
+Do not rewrite completed Tasks. Crash is still `failed` / `worker_gone`,
+not `interrupted`. Explicit cancel stays `interrupted`.
+
+| Task | Title | Status | Depends on | Done when |
+| --- | --- | --- | --- | --- |
+| [TASK-036](#epic-009-reap-leftover-children) | Reap leftover app-server and ACP children on parent exit and in tests | `Completed` | TASK-035 | App-server and live-instruction tests Drop-kill the listen child and ledger ACP pids. MCP stdin EOF and CLI/app-server SIGTERM/SIGINT teardown registered Grok process groups without publishing `interrupted`. Turn completion uses process-group teardown, not only the leader. `waitpid(WNOHANG)` treats a zombie leader as dead. SIGKILL owner-death stays `worker_gone`; tests reap any leftover child. `make test` passes and does not call live Grok. |

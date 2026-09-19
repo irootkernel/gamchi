@@ -23,7 +23,10 @@ status is one of the pinned subset statuses: `completed`, `interrupted`,
 MCP:  grok_spawn returns ids; the **MCP server process** owns the Grok child
       grok_await holds until terminal (or pending_approval)
 CLI:  worker start prints ids then **stays in the foreground** until terminal
-      There is no v1 daemon. If the CLI process exits, the child is gone.
+      There is no v1 daemon. Graceful parent exit (MCP stdin EOF,
+      SIGINT/SIGTERM) tears down the Grok process group. The child is
+      gone. SIGKILL of the owner is still `worker_gone` and is not a
+      guaranteed reap (macOS has no parent-death signal).
 ```
 
 “Immediate return” applies to **MCP tool results**, not to the CLI process
@@ -212,7 +215,11 @@ implement:
 `grok agent stdio` is a **child of the gamchi process** that spawned it:
 the long-lived MCP server, or the CLI `start` process that stays in the
 foreground. It is not detached in v1. CLI `start` must not exit while the
-child should live.
+child should live. The child uses its own process group so `grok_cancel`
+can `killpg` without killing the MCP/CLI process. MCP stdin EOF and
+SIGINT/SIGTERM still tear that group down. They do not publish
+`interrupted`; later observe is `worker_gone` if no terminal record
+exists. Explicit `grok_cancel` stays `interrupted`.
 
 `grok agent leader` / `grok agent serve` are not the v1 owner
 ([ADR-0002](../architecture-decision-records/0002-grok-agent-stdio.md)).

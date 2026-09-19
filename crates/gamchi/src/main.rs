@@ -54,13 +54,20 @@ fn run(args: &[&str], stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
             1
         }
         _ => match args[0] {
-            "worker" => run_worker(&args[1..], stdout, stderr),
+            "worker" => {
+                samchi_adapter_grok::install_signal_teardown();
+                run_worker(&args[1..], stdout, stderr)
+            }
             "mcp" => {
+                samchi_adapter_grok::install_signal_teardown();
                 let stdin = io::stdin();
                 let mut lock = stdin.lock();
                 mcp::run_mcp(&args[1..], &mut lock, stdout)
             }
-            "app-server" => app_server::run(&args[1..], stderr),
+            "app-server" => {
+                samchi_adapter_grok::install_signal_teardown();
+                app_server::run(&args[1..], stderr)
+            }
             other => {
                 write_all(stderr, "GAMCHI_STARTUP_ERROR INVALID_CONFIG\n");
                 if !other.starts_with('-') {

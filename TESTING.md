@@ -69,6 +69,10 @@ TASK-014 crash no-replay is offline: kill the owner or child of an
 `inProgress` turn; the ledger is `failed`/`worker_gone` (or an earlier
 terminal) and no second Grok child is started for that `turn_id`. Live Grok
 is not required.
+TASK-036 leftover reap is offline: app-server listen Drop kills the server
+and any ledger ACP child; MCP stdin EOF and CLI SIGTERM reap a hanging
+fake-agent; process-group teardown returns quickly for a zombie leader.
+SIGKILL owner-death stays `worker_gone`. Live Grok is not required.
 TASK-015 app-server listen is offline in `gamchi` (`app_server`):
 HTTP/1.1 upgrade on `/`, recorded rejection table, occupied path fail-closed.
 TASK-016 handshake is offline JSON-RPC on that socket: honest

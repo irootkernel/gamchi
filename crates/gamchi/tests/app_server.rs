@@ -6,6 +6,7 @@ use base64::Engine;
 use samchi_core::ledger::Ledger;
 use samchi_core::source_wire::{ApprovalPolicy, ThreadSandbox};
 use std::io::{BufRead, BufReader, Read, Write};
+use std::ops::{Deref, DerefMut};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -31,11 +32,55 @@ fn unique_sock() -> PathBuf {
     std::env::temp_dir().join(format!("sc-as-{}-{n}.sock", std::process::id()))
 }
 
-fn spawn_listen(url: &str, home: Option<&Path>) -> Child {
+struct ListenChild {
+    child: Child,
+    sock: PathBuf,
+    home: Option<PathBuf>,
+}
+
+impl Deref for ListenChild {
+    type Target = Child;
+    fn deref(&self) -> &Child {
+        &self.child
+    }
+}
+
+impl DerefMut for ListenChild {
+    fn deref_mut(&mut self) -> &mut Child {
+        &mut self.child
+    }
+}
+
+impl Drop for ListenChild {
+    fn drop(&mut self) {
+        stop(&mut self.child, &self.sock);
+        if let Some(home) = &self.home {
+            reap_ledger_children(home);
+        }
+    }
+}
+
+fn reap_ledger_children(home: &Path) {
+    let Ok(ledger) = Ledger::open(home.to_path_buf()) else {
+        return;
+    };
+    let Ok(turns) = ledger.list_turns(None) else {
+        return;
+    };
+    for turn in turns {
+        if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
+            if let Some(pid) = generation.child_pid {
+                samchi_adapter_grok::teardown_process_group(pid);
+            }
+        }
+    }
+}
+
+fn spawn_listen(url: &str, home: Option<&Path>) -> ListenChild {
     spawn_listen_with(url, home, &[])
 }
 
-fn spawn_listen_with(url: &str, home: Option<&Path>, extra: &[(&str, &str)]) -> Child {
+fn spawn_listen_with(url: &str, home: Option<&Path>, extra: &[(&str, &str)]) -> ListenChild {
     let mut cmd = Command::new(bin());
     cmd.args(["app-server", "--listen", url])
         .env("GAMCHI_ACP_PROGRAM", fake_agent())
@@ -48,7 +93,13 @@ fn spawn_listen_with(url: &str, home: Option<&Path>, extra: &[(&str, &str)]) -> 
     for (k, v) in extra {
         cmd.env(k, v);
     }
-    cmd.spawn().expect("spawn app-server")
+    let child = cmd.spawn().expect("spawn app-server");
+    let sock = PathBuf::from(url.strip_prefix("unix://").expect("unix listen url"));
+    ListenChild {
+        child,
+        sock,
+        home: home.map(Path::to_path_buf),
+    }
 }
 
 fn wait_for_sock(path: &Path, child: &mut Child) {
@@ -266,14 +317,29 @@ fn rpc_call(
 }
 
 fn mcp_spawn(home: &Path, cwd: &Path, prompt: &str) -> serde_json::Value {
-    let mut child = Command::new(bin())
-        .args(["mcp", "--home", home.to_str().unwrap()])
-        .env("GAMCHI_ACP_PROGRAM", fake_agent())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("mcp");
+    struct ReapMcp {
+        child: Child,
+        home: PathBuf,
+    }
+    impl Drop for ReapMcp {
+        fn drop(&mut self) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+            reap_ledger_children(&self.home);
+        }
+    }
+    let mut mcp = ReapMcp {
+        child: Command::new(bin())
+            .args(["mcp", "--home", home.to_str().unwrap()])
+            .env("GAMCHI_ACP_PROGRAM", fake_agent())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("mcp"),
+        home: home.to_path_buf(),
+    };
+    let child = &mut mcp.child;
     let mut stdin = child.stdin.take().expect("stdin");
     let mut stdout = BufReader::new(child.stdout.take().expect("stdout"));
     let init = serde_json::json!({
@@ -1143,4 +1209,91 @@ fn model_list_fixture_and_turn_model_lock() {
     let stored = ledger.read_thread(&thread_id).unwrap();
     assert_eq!(stored.model, "grok-4.6");
     stop(&mut child, &sock);
+}
+
+fn pid_running(pid: u32) -> bool {
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+#[test]
+fn listen_drop_reaps_app_server() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let home = tempfile::tempdir().expect("home");
+    let mut child = spawn_listen(&url, Some(home.path()));
+    wait_for_sock(&sock, &mut child);
+    let pid = child.id();
+    drop(child);
+    assert!(
+        !pid_running(pid),
+        "dropped listen child {pid} still running"
+    );
+}
+
+#[test]
+fn listen_drop_reaps_hanging_acp_child() {
+    let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempfile::tempdir().expect("home");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let sock = unique_sock();
+    let url = format!("unix://{}", sock.display());
+    let mut child = spawn_listen_with(&url, Some(home.path()), &[("GAMCHI_FAKE_HANG_SECS", "60")]);
+    wait_for_sock(&sock, &mut child);
+    let mut stream = connect_upgraded(&sock);
+    let _ = rpc_call(
+        &mut stream,
+        1,
+        "initialize",
+        serde_json::json!({
+            "clientInfo": {"name": "shaped", "version": "0"},
+            "capabilities": {"optOutNotificationMethods": []}
+        }),
+    );
+    let started = rpc_call(
+        &mut stream,
+        2,
+        "thread/start",
+        serde_json::json!({"cwd": cwd.path().to_str().unwrap()}),
+    );
+    let thread_id = started["result"]["thread"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let first = rpc_call(
+        &mut stream,
+        3,
+        "turn/start",
+        serde_json::json!({
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": "hang"}]
+        }),
+    );
+    let turn_id = first["result"]["turn"]["id"].as_str().unwrap().to_string();
+    let ledger = Ledger::open(home.path()).expect("ledger");
+    let start = Instant::now();
+    let pid = loop {
+        let turn = ledger.read_turn(&turn_id).expect("turn");
+        if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
+            if let Some(pid) = generation.child_pid {
+                break pid;
+            }
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "child_pid never appeared"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    drop(child);
+    assert!(
+        !pid_running(pid),
+        "hanging ACP child {pid} must die when listen Drop runs"
+    );
 }

@@ -8,7 +8,7 @@
 use samchi_core::ledger::Ledger;
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 fn bin() -> &'static str {
@@ -44,6 +44,7 @@ struct Rpc {
     stdin: std::process::ChildStdin,
     stdout: BufReader<std::process::ChildStdout>,
     next_id: u64,
+    home: PathBuf,
 }
 
 impl Rpc {
@@ -62,6 +63,7 @@ impl Rpc {
             stdin,
             stdout,
             next_id: 1,
+            home: PathBuf::from(home),
         }
     }
 
@@ -88,6 +90,18 @@ impl Rpc {
 impl Drop for Rpc {
     fn drop(&mut self) {
         let _ = self.child.kill();
+        let _ = self.child.wait();
+        if let Ok(ledger) = Ledger::open(self.home.clone()) {
+            if let Ok(turns) = ledger.list_turns(None) {
+                for turn in turns {
+                    if let Ok(generation) = ledger.read_generation(&turn.generation_id) {
+                        if let Some(pid) = generation.child_pid {
+                            samchi_adapter_grok::teardown_process_group(pid);
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
