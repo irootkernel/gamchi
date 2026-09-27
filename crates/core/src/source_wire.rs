@@ -5,12 +5,12 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 
-/// SHA-256 of docs/protocol/references/dolgorae-codex-0.149.0-required-subset.json.
-pub const SUBSET_SHA256: &str = "7d6b33228266826eb5077192867f31f0caf2df1875525c194ee23f179050d409";
+/// SHA-256 of docs/protocol/references/dolgorae-codex-0.157.0-required-subset.json.
+pub const SUBSET_SHA256: &str = "e7c7fdb9608e44c0c7712af564168e9a20e3d8a948d457290f1b7c7a5781882a";
 
 /// Repository-relative subset artifact.
 pub const SUBSET_REL_PATH: &str =
-    "docs/protocol/references/dolgorae-codex-0.149.0-required-subset.json";
+    "docs/protocol/references/dolgorae-codex-0.157.0-required-subset.json";
 
 /// Transport bounds from Dolgorae src/app_server.rs / CCAS REQ-TRANSPORT-004.
 pub const MAX_HTTP_UPGRADE_BYTES: usize = 16 * 1024;

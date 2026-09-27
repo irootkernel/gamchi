@@ -59,6 +59,7 @@ Next eligible Task: none.
 | Phase 5 — Product identity | Grok worker command is gamchi | `Completed` | EPIC-007 |
 | Phase 6 — Codex-shaped developer instructions | Socket `developerInstructions` either reach Grok for that thread generation or fail closed | `Completed` | EPIC-008 |
 | Phase 7 — Child lifetime | Parent exit and tests reap Grok and app-server children | `Completed` | EPIC-009 |
+| Phase 8 — Consumer subset pin | Checked Dolgorae subset is Codex schema 0.157.0, runtime minimum 0.157.1 | `Completed` | EPIC-010 |
 
 ## EPIC-001: Foundation
 
@@ -296,10 +297,11 @@ Unauthenticated capture is Blocked.
 
 This epic is a predecessor for instruction-delivery compatibility. It
 does not make Dolgorae able to select gamchi. Remaining attach work
-(other repo / later epic): Profile validation is Codex 0.153.4 and
-runs Codex schema generation; Dolgorae turns send `networkAccess:
-false` and write turns send `writableRoots` (gamchi refuses those
-extras); gamchi also refuses unverified `sandbox=read-only`. TASK-031
+(other repo / later epic): Profile validation requires Codex runtime
+0.157.1 or newer and the checked 0.157.0 schema bundle, and runs Codex
+schema generation; Dolgorae turns send `networkAccess: false` and write
+turns send `writableRoots` (gamchi refuses those extras); gamchi also
+refuses unverified `sandbox=read-only`. TASK-031
 closeout was **safe refusal**. TASK-033..035 attached via `_meta.rules`.
 
 Non-goals: Dolgorae Profile or adapter (other repo); `thread/fork`; MCP
@@ -334,3 +336,19 @@ not `interrupted`. Explicit cancel stays `interrupted`.
 | Task | Title | Status | Depends on | Done when |
 | --- | --- | --- | --- | --- |
 | [TASK-036](#epic-009-reap-leftover-children) | Reap leftover app-server and ACP children on parent exit and in tests | `Completed` | TASK-035 | App-server and live-instruction tests Drop-kill the listen child and ledger ACP pids. MCP stdin EOF and CLI/app-server SIGTERM/SIGINT teardown registered Grok process groups without publishing `interrupted`. Turn completion uses process-group teardown, not only the leader. `waitpid(WNOHANG)` treats a zombie leader as dead. SIGKILL owner-death stays `worker_gone`; tests reap any leftover child. `make test` passes and does not call live Grok. |
+
+## EPIC-010: Refresh the Dolgorae consumer subset pin
+
+Status: `Completed`
+
+Depends on: EPIC-009
+
+The checked consumer subset follows Dolgorae's Codex 0.157.0 manifest.
+Runtime minimum recorded by that manifest is 0.157.1. Client methods,
+approval and sandbox vocabulary, and app-server behavior stay as
+already implemented. `thread/fork` stays fail-closed. This epic does
+not make a Dolgorae Profile able to launch gamchi.
+
+| Task | Title | Status | Depends on | Done when |
+| --- | --- | --- | --- | --- |
+| [TASK-037](#epic-010-refresh-the-dolgorae-consumer-subset-pin) | Pin the Codex 0.157.0 required subset | `Completed` | TASK-036 | The vendored subset matches Dolgorae `docs/protocol/codex-0.157.0-required-subset.json` from commit `2885a33eb7dfcf8a82a5de9a86194655ec44fee9`, unchanged at checkout `ca935d5af94b006c904faf9189098848ea76365a`. `source_wire` records that digest. Current-baseline docs name schema 0.157.0 and runtime minimum 0.157.1. Completed TASK-002 wording stays historical. Method constants, handlers, and `thread/fork` `-32602` stay. `make test` passes and does not call live Grok. |

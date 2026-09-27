@@ -26,7 +26,7 @@ v1 does not implement Claude or GLM. Do not add `adapter-claude` or
 ```text
  parents
    Claude Code / Codex  --MCP-->   facade: mcp
-   Dolgorae             --unix WS app-server 0.149.0 subset-->  facade: app-server
+   Dolgorae             --unix WS app-server 0.157.0 subset-->  facade: app-server
    humans / tests       --CLI-->   facade: cli
                                 │
                                 ▼

@@ -23,7 +23,8 @@ None.
   non-empty values. Re-enter if MCP, CLI, or another ledger writer
   can set both fields independently. The round-1 review predates
   this note.
-- Dolgorae attach after EPIC-008: Profile is Codex 0.153.4; turns send
+- Dolgorae attach after EPIC-008: Profile requires Codex runtime 0.157.1
+  or newer and the checked 0.157.0 schema bundle; turns send
   `networkAccess: false` and write turns send `writableRoots`; gamchi
   refuses those extras and unverified `read-only`. Instruction
   delivery is a predecessor, not attach. Re-enter when Dolgorae owns a

@@ -225,5 +225,6 @@ Live app-server honor is recorded by the ignored TASK-035
 `live_instructions` test. `make test` does not call live Grok.
 
 This epic does not make a Dolgorae Profile able to launch gamchi.
-Remaining attach (later work): Codex 0.153.4 Profile validation,
-`networkAccess` / `writableRoots` extras, unverified `read-only`.
+Remaining attach (later work): Codex runtime 0.157.1 or newer with the
+checked 0.157.0 schema bundle, `networkAccess` / `writableRoots` extras,
+unverified `read-only`.

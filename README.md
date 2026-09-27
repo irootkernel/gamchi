@@ -27,9 +27,9 @@ completion signal. Details:
 [docs/specs/mcp-async-host-contract.md](docs/specs/mcp-async-host-contract.md).
 
 The CCAS-compatible Unix-domain app-server is layered on after the worker is
-proven. That socket speaks the same Codex 0.149.0 subset Dolgorae requires as
-a client; see [docs/protocol/](docs/protocol/). gamchi does not import
-Dolgorae.
+proven. That socket speaks the Codex 0.157.0 subset Dolgorae requires as
+a client, with runtime minimum 0.157.1; see [docs/protocol/](docs/protocol/).
+gamchi does not import Dolgorae.
 
 ## Status
 
